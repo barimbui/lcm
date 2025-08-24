@@ -189,6 +189,12 @@
   <header class="topbar">
     <h1 class="topbar__title">LCM DASHBOARD</h1>
     <div class="topbar__actions">
+      <!-- NEW: Notifications link with unread badge -->
+      <a href="notifications.html" class="btn btn-secondary" id="nav-notifications" style="position:relative">
+        🔔 Notifications
+        <span id="notif-badge" class="badge" hidden>0</span>
+      </a>
+
       <button id="sign-out" class="btn">Sign Out</button>
     </div>
   </header>
@@ -352,5 +358,46 @@
       window.addEventListener("resize", layoutNodes);
     });
   </script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  // Find your Supabase client
+  const db =
+    window.sb || window.supabaseClient || window.client || window.db || window.supabase;
+
+  const badge = document.getElementById('notif-badge');
+  const nav   = document.getElementById('nav-notifications')
+            || document.querySelector('a[href="notifications.html"]');
+
+  if (!db || !badge) return;
+  if (nav && !nav.style.position) nav.style.position = 'relative';
+
+  async function refreshUnread() {
+    try {
+      const { data: { session } = {} } = await db.auth.getSession();
+      if (!session) { badge.setAttribute('hidden', ''); return; }
+
+      // Change p_kind: 'POLICING' to show only policing, or null for all kinds
+      const { data, error } = await db.rpc('get_unread_notifications_count', { p_kind: null });
+      if (error) { console.warn('unread count error:', error); return; }
+
+      const n = Number(data) || 0;
+      if (n > 0) {
+        badge.textContent = n > 99 ? '99+' : String(n);
+        badge.removeAttribute('hidden');
+      } else {
+        badge.setAttribute('hidden', '');
+      }
+    } catch (e) {
+      console.warn('refreshUnread failed:', e);
+    }
+  }
+
+  refreshUnread();
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') refreshUnread();
+  });
+  setInterval(refreshUnread, 30000);
+});
+</script>
 </body>
 </html>

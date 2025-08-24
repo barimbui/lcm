@@ -82,14 +82,21 @@
       const unreadOnly = document.getElementById('only-unread');
       const markAllBtn = document.getElementById('mark-all');
 
+      function getSupabaseClient() {
+        const cands = [window.sb, window.supabaseClient, window.client, window.db, window.supabase].filter(Boolean);
+        for (const c of cands) if (c?.auth && typeof c.from === 'function') return c;
+        return null;
+      }
+      const db = getSupabaseClient();
+
       document.getElementById('sign-out')?.addEventListener('click', async () => {
-        await window.sb.auth.signOut();
+        if (db?.auth?.signOut) await db.auth.signOut();
         window.location.href = 'index.html';
       });
 
-      if (!window.sb) { whoEl.textContent = 'Supabase not initialized.'; return; }
+      if (!db) { whoEl.textContent = 'Supabase not initialized.'; return; }
 
-      const { data: { session } } = await window.sb.auth.getSession();
+      const { data: { session } = {} } = await db.auth.getSession();
       if (!session) { window.location.href = 'index.html'; return; }
       whoEl.textContent = `Signed in as: ${session.user?.email || '(no email)'}`;
 
@@ -100,75 +107,50 @@
         try { return new Date(iso).toLocaleString(); } catch { return iso || ''; }
       }
 
-      async function markRead(id) {
-        await window.sb.from('notifications').update({ is_read: true }).eq('id', id);
+      async function markOneRead(id) {
+        // Use RPC so it matches RLS
+        try { await db.rpc('mark_notification_read', { p_notification_id: id }); }
+        catch (e) { console.warn('mark_notification_read failed:', e); }
       }
 
       async function markAllRead() {
-        const { data: rows } = await window.sb
-          .from('notifications')
-          .select('id, is_read');
-        if (!rows) return;
-        const unread = rows.filter(r => !r.is_read);
-        if (unread.length === 0) return;
-        // Batch in parallel (simple)
-        await Promise.all(unread.map(r => markRead(r.id)));
+        status.textContent = 'Marking all as read…';
+        const { data: items, error } = await db.rpc('get_my_notifications', { p_limit: 200 });
+        if (error) { status.textContent = error.message; return; }
+        const unread = (items || []).filter(n => !n.read_at);
+        await Promise.all(unread.map(n => markOneRead(n.id)));
+        status.textContent = '';
         await loadNotifications();
       }
 
-      function renderInviteActions(n) {
+      function renderActions(n, link) {
         const wrap = document.createElement('div');
+        const isUnread = !n.read_at;
+
         wrap.className = 'actions';
-
-        const acceptBtn = document.createElement('button');
-        acceptBtn.className = 'btn-primary';
-        acceptBtn.textContent = 'Accept invite';
-        acceptBtn.addEventListener('click', async () => {
-          const token = n.data?.invite_token;
-          if (!token) { status.textContent = 'Missing invite token.'; return; }
-          acceptBtn.disabled = true; acceptBtn.textContent = 'Accepting…'; status.textContent = 'Processing…';
-
-          const { data, error } = await window.sb.rpc('accept_invite', { p_token: token });
-          if (error) {
-            console.error('accept_invite error:', error);
-            status.textContent = error.message || 'Could not accept invite.';
-            acceptBtn.disabled = false; acceptBtn.textContent = 'Accept invite';
-            return;
-          }
-
-          // Mark read and reveal "Open Community"
-          await markRead(n.id);
-          const row = Array.isArray(data) && data[0] ? data[0] : data;
-          const cid = row?.community_id || n.data?.community_id;
-          status.textContent = 'Invitation accepted ✅';
-          acceptBtn.remove();
-
-          if (cid) {
-            const open = document.createElement('a');
-            open.className = 'btn-ghost';
-            open.href = `community.html?id=${cid}`;
-            open.textContent = 'Open Community';
-            wrap.appendChild(open);
-          }
-        });
-
-        wrap.appendChild(acceptBtn);
-        return wrap;
-      }
-
-      function renderDefaultActions(n) {
-        const wrap = document.createElement('div');
-        wrap.className = 'actions';
-
-        if (!n.is_read) {
-          const btn = document.createElement('button');
-          btn.className = 'btn-ghost';
-          btn.textContent = 'Mark as read';
-          btn.addEventListener('click', async () => {
-            await markRead(n.id);
+        if (isUnread) {
+          const markBtn = document.createElement('button');
+          markBtn.className = 'btn-ghost';
+          markBtn.textContent = 'Mark as read';
+          markBtn.onclick = async (e) => {
+            e.stopPropagation();
+            markBtn.disabled = true; markBtn.textContent = 'Reading…';
+            await markOneRead(n.id);
             await loadNotifications();
-          });
-          wrap.appendChild(btn);
+          };
+          wrap.appendChild(markBtn);
+        }
+        if (link) {
+          const openBtn = document.createElement('a');
+          openBtn.className = 'btn-primary';
+          openBtn.href = '#';
+          openBtn.textContent = 'Open';
+          openBtn.onclick = async (e) => {
+            e.preventDefault(); e.stopPropagation();
+            await markOneRead(n.id);
+            window.location.href = link;   // deep-link to policing.html?incident=…
+          };
+          wrap.appendChild(openBtn);
         }
         return wrap;
       }
@@ -178,31 +160,34 @@
         listEl.innerHTML = '';
         emptyEl.style.display = 'none';
 
-        let query = window.sb
-          .from('notifications')
-          .select('id, type, title, body, data, is_read, created_at')
-          .order('created_at', { ascending: false });
-
-        if (unreadOnly.checked) query = query.eq('is_read', false);
-
-        const { data, error } = await query;
-        if (error) { console.error('load notifications error:', error); status.textContent = error.message; return; }
+        const { data: items, error } = await db.rpc('get_my_notifications', { p_limit: 100 });
+        if (error) { console.error('get_my_notifications error:', error); status.textContent = error.message; return; }
         status.textContent = '';
 
-        if (!data || data.length === 0) {
-          emptyEl.style.display = 'block';
-          return;
-        }
+        let rows = items || [];
+        if (unreadOnly.checked) rows = rows.filter(n => !n.read_at);
 
-        for (const n of data) {
+        if (rows.length === 0) { emptyEl.style.display = 'block'; return; }
+
+        for (const n of rows) {
+          const link = n.link || null; // RPC returns link; we rely on that
           const card = document.createElement('div');
-          card.className = 'card' + (n.is_read ? '' : ' unread');
+          card.className = 'card' + (n.read_at ? '' : ' unread');
+
+          // Make the whole card clickable if link exists
+          if (link) {
+            card.style.cursor = 'pointer';
+            card.onclick = async () => {
+              await markOneRead(n.id);
+              window.location.href = link;
+            };
+          }
 
           const header = document.createElement('div');
           header.className = 'row';
           header.innerHTML = `
             <span class="title">${n.title || '(Notification)'}</span>
-            <span class="pill ${n.type === 'invite' ? 'invite' : ''}">${n.type}</span>
+            <span class="pill ${String(n.kind).toLowerCase() === 'invite' ? 'invite' : ''}">${n.kind || ''}</span>
             <span class="meta">${fmtDate(n.created_at)}</span>
           `;
           card.appendChild(header);
@@ -214,9 +199,7 @@
             card.appendChild(body);
           }
 
-          const actions = (n.type === 'invite') ? renderInviteActions(n) : renderDefaultActions(n);
-          card.appendChild(actions);
-
+          card.appendChild(renderActions(n, link));
           listEl.appendChild(card);
         }
       }

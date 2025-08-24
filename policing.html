@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>LCM – Policing</title>
+
+  <link rel="stylesheet" href="styles.css" />
+
+  <!-- Supabase v2 CDN (must load before supabaseClient.js & policing.js) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Your initialized client (reuses your URL & anon key) -->
+  <script defer src="supabaseClient.js"></script>
+
+  <!-- (Optional) utilities if you need them) -->
+  <script defer src="utils.js"></script>
+
+  <!-- Policing page logic -->
+  <script defer src="policing.js"></script>
+</head>
+
+<body class="dark">
+  <!-- Top bar -->
+  <header class="topbar">
+    <h1 class="topbar__title">LIFE CREDITS MANNA</h1>
+    <div class="topbar__actions">
+      <a class="btn btn-secondary" href="dashboard.html" onclick="history.back(); return false;" aria-label="Back to Dashboard">← Dashboard</a>
+    </div>
+  </header>
+
+  <main style="padding: 16px;">
+    <!-- ===== POLICING: Report Misconduct Card ===== -->
+    <section id="policing" class="police-section">
+      <div class="police-header">POLICING</div>
+
+      <div class="police-card" id="report-misconduct-card">
+        <h3 class="police-card-title">Report Misconduct</h3>
+
+        <!-- Community -->
+        <label class="police-label" for="police-community-select">Community</label>
+        <div class="police-row">
+          <select id="police-community-select" class="police-input" aria-label="Select community">
+            <option value="" selected disabled>Select a community…</option>
+            <option value="HOME">HOME</option>
+            <option value="SCHOOL">SCHOOL</option>
+            <option value="CHURCH">CHURCH</option>
+            <option value="WORK">WORK</option>
+            <option value="TEAM">TEAM</option>
+          </select>
+        </div>
+
+        <!-- Reported User -->
+        <label class="police-label" for="police-reported-user-select">Reported User</label>
+        <div class="police-row">
+          <select id="police-reported-user-select" class="police-input" aria-label="Select reported user" disabled>
+            <option value="" selected disabled>Select a user…</option>
+          </select>
+        </div>
+        <div class="police-row" id="police-reported-user-fallback" hidden>
+          <input id="police-reported-user" class="police-input" type="text" placeholder="Paste user UUID (fallback) …" />
+        </div>
+
+        <!-- Attach Task -->
+        <label class="police-label" for="police-task-select">Attach Task (optional)</label>
+        <div class="police-row">
+          <select id="police-task-select" class="police-input" aria-label="Attach Task" disabled>
+            <option value="">General incident (no specific task)</option>
+          </select>
+        </div>
+        <div class="police-row" id="police-task-fallback" hidden>
+          <input id="police-task-id" class="police-input" type="text" placeholder="Task ID (fallback) or leave empty" />
+        </div>
+
+        <!-- Reason -->
+        <label class="police-label" for="police-reason">What happened?</label>
+        <textarea id="police-reason" class="police-textarea" rows="5" placeholder="Describe briefly and respectfully…"></textarea>
+
+        <!-- Evidence URL -->
+        <label class="police-label" for="police-evidence">Evidence (optional)</label>
+        <input id="police-evidence" class="police-input" type="url" placeholder="Link to photo/video/post (https://…)" />
+
+        <!-- Submit -->
+        <div class="police-actions">
+          <button id="police-submit" class="police-btn">Submit Report</button>
+        </div>
+
+        <!-- Soft toast placeholder -->
+        <div id="police-toast" class="police-toast" aria-live="polite" hidden>
+          Report submitted. Awaiting verifiers.
+        </div>
+      </div>
+
+      <!-- ===== Verify Queue Card ===== -->
+      <div class="police-card" id="verify-queue-card" style="margin-top: 16px;">
+        <h3 class="police-card-title">Verify Queue</h3>
+
+        <div id="verify-empty" class="police-toast" hidden>
+          Nothing to verify right now.
+        </div>
+
+        <div id="verify-list"></div>
+      </div>
+      <!-- ===== END Verify Queue ===== -->
+    </section>
+    <!-- ===== END Policing Section ===== -->
+  </main>
+
+  <!-- ===== Incident Detail Modal (inline styles, no extra CSS) ===== -->
+  <div id="incident-modal" hidden
+       style="position:fixed; inset:0; z-index:9990; display:flex; align-items:center; justify-content:center;">
+    <div class="police-modal__backdrop"
+         style="position:absolute; inset:0; background:rgba(0,0,0,0.6);" onclick="document.getElementById('incident-modal').hidden=true"></div>
+
+    <div class="police-modal__panel"
+         style="position:relative; width:min(900px,95vw); max-height:90vh; overflow:auto; background:#101012;
+                border:1px solid #2b2640; border-radius:16px; padding:16px; box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+      <button id="incident-close" aria-label="Close"
+              style="position:absolute; top:8px; right:8px; width:36px; height:36px; border:none; border-radius:8px;
+                     background:#1a1628; color:#ddd; cursor:pointer;">×</button>
+
+      <h3 class="police-card-title" style="margin-top:8px;">Incident Detail</h3>
+
+      <div id="incident-body" class="police-modal__body" style="margin-top:8px;">
+        <!-- Populated by JS -->
+      </div>
+
+      <div class="police-actions" style="gap:8px; justify-content:flex-end; margin-top:12px;">
+        <button id="btn-false" class="btn btn-secondary">FALSE</button>
+        <button id="btn-ignore" class="btn btn-secondary">IGNORE</button>
+        <button id="btn-true" class="police-btn">TRUE</button>
+      </div>
+
+      <!-- FALSE justification form (revealed on FALSE click) -->
+      <div id="false-form" hidden style="margin-top:10px;">
+        <label class="police-label" for="false-reason">Why is this false?</label>
+        <textarea id="false-reason" class="police-textarea" rows="3" placeholder="Brief reason…"></textarea>
+        <div class="police-actions" style="gap:8px; justify-content:flex-end; margin-top:8px;">
+          <button id="btn-false-cancel" class="btn btn-secondary">Cancel</button>
+          <button id="btn-false-submit" class="police-btn">Submit FALSE</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- ===== END Modal ===== -->
+</body>
+</html>

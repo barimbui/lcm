@@ -118,3 +118,87 @@ body.dark {
 .status { margin-top: 12px; min-height: 20px; color: var(--muted); }
 .status.error { color: var(--red); }
 .status.ok { color: var(--green); }
+
+/* ===== POLICING: Report Misconduct (namespaced) ===== */
+.police-section { margin: 2rem auto; max-width: 1000px; }
+.police-header {
+  background: #5a2ca0;
+  color: #fff; font-weight: 700; letter-spacing: 0.08em;
+  padding: 0.85rem 1.2rem; border-radius: 12px; text-align: center;
+  margin-bottom: 1rem;
+}
+
+.police-card {
+  background: #101012;
+  border: 1px solid #2b2640;
+  border-radius: 16px; padding: 1.25rem;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+}
+.police-card-title {
+  color: #fff; font-size: 1.1rem; margin: 0 0 0.75rem 0;
+  padding: 0.35rem 0.6rem; background: #5a2ca0; display: inline-block; border-radius: 8px;
+}
+
+.police-label { color: #bbb; font-size: 0.9rem; margin-top: 0.9rem; display: block; }
+.police-row { display: flex; gap: 0.75rem; align-items: center; margin-top: 0.4rem; }
+
+.police-input, .police-textarea {
+  width: 100%; background: #0b0b0e; color: #eaeaea;
+  border: 1px solid #3a3358; border-radius: 12px;
+  padding: 0.7rem 0.9rem; outline: none;
+}
+.police-input:focus, .police-textarea:focus {
+  border-color: #7b57c8; box-shadow: 0 0 0 3px rgba(123,87,200,0.25);
+}
+
+.police-textarea { resize: vertical; min-height: 120px; }
+
+.police-pills { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+.police-pill {
+  background: #1a1628; color: #ddd; border: 1px solid #3a3358;
+  padding: 0.45rem 0.8rem; border-radius: 999px; cursor: pointer;
+  transition: transform 0.05s ease-in-out;
+}
+.police-pill:hover { transform: translateY(-1px); }
+.police-pill.active {
+  background: #5a2ca0; color: #fff; border-color: #7b57c8;
+  box-shadow: 0 0 0 3px rgba(123,87,200,0.25);
+}
+
+.police-actions { display: flex; justify-content: center; margin-top: 1rem; }
+.police-btn {
+  background: #5a2ca0; color: #fff; font-weight: 700;
+  border: none; border-radius: 999px; padding: 0.9rem 1.6rem;
+  cursor: pointer; box-shadow: 0 6px 18px rgba(90,44,160,0.35);
+}
+.police-btn:hover { filter: brightness(1.05); }
+.police-btn:active { transform: translateY(1px); }
+
+.police-toast {
+  margin-top: 0.9rem; background: rgba(90,44,160,0.15); border: 1px solid #5a2ca0;
+  color: #e9defa; border-radius: 10px; padding: 0.6rem 0.8rem; text-align: center;
+}
+
+/* Mobile tweaks */
+@media (max-width: 640px) {
+  .police-section { margin: 1rem auto; }
+  .police-header { font-size: 0.95rem; }
+  .police-card { padding: 1rem; }
+}
+
+/* === Notification badge (unread counter) === */
+.badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 12px;
+  background: #e0245e; /* red badge */
+  color: #fff;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--panel, #101012);
+}

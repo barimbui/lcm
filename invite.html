@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>LCM — Invitation</title>
+
+  <link rel="stylesheet" href="styles.css" />
+
+  <!-- Supabase v2 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="supabaseClient.js"></script>
+
+  <style>
+    .wrap { max-width: 760px; margin: 24px auto; padding: 0 12px; }
+    .panel {
+      background: var(--panel); border: 1px solid var(--gray-700);
+      border-radius: 16px; padding: 16px; box-shadow: 0 8px 24px rgba(0,0,0,.35);
+    }
+    .row { display:flex; align-items:center; gap:10px; }
+    .spacer { flex: 1 1 auto; }
+    .hint { color: var(--muted); }
+    .btn-primary { background: var(--purple); color:#fff; border:none; padding:8px 12px; border-radius:10px; cursor:pointer; }
+    .btn-secondary { background: transparent; color: var(--text); border:1px solid var(--gray-700); padding:8px 12px; border-radius:10px; cursor:pointer; }
+  </style>
+</head>
+
+<body class="dark">
+  <header class="topbar">
+    <h1 class="topbar__title">LCM — Invitation</h1>
+    <div class="topbar__actions">
+      <a href="dashboard.html" class="btn btn-secondary">← Dashboard</a>
+      <button id="sign-out" class="btn">Sign Out</button>
+    </div>
+  </header>
+
+  <main class="dashboard">
+    <div class="wrap">
+      <p id="whoami" class="welcome-chip">Checking your session…</p>
+
+      <div class="panel" style="margin-top:12px;">
+        <h2 style="margin:0 0 8px; color: var(--text);">Community Invite</h2>
+        <p id="status" class="hint">Validating invite…</p>
+
+        <div class="row" style="margin-top:12px;">
+          <button id="btn-accept" class="btn-primary">Accept Invite</button>
+          <a id="btn-community" class="btn-secondary" href="#" style="display:none;">Open Community</a>
+          <div class="spacer"></div>
+          <a class="btn-secondary" href="index.html">Sign in</a>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const whoEl = document.getElementById('whoami');
+      const statusEl = document.getElementById('status');
+      const acceptBtn = document.getElementById('btn-accept');
+      const openBtn = document.getElementById('btn-community');
+
+      document.getElementById('sign-out')?.addEventListener('click', async () => {
+        await window.sb.auth.signOut();
+        window.location.href = 'index.html';
+      });
+
+      if (!window.sb) { whoEl.textContent = 'Supabase not initialized.'; return; }
+
+      // Show session (if any)
+      let { data: { session } } = await window.sb.auth.getSession();
+      if (!session) {
+        whoEl.textContent = 'Not signed in';
+      } else {
+        whoEl.textContent = `Signed in as: ${session.user?.email || '(no email)'}`;
+      }
+
+      // Need a token
+      const params = new URLSearchParams(location.search);
+      const token = params.get('token');
+      if (!token) {
+        statusEl.textContent = 'Invalid or missing invite link.';
+        acceptBtn.disabled = true;
+        return;
+      }
+
+      // Click to accept (requires being signed in with the invited email)
+      acceptBtn.addEventListener('click', async () => {
+        // Refresh session just in case
+        ({ data: { session } } = await window.sb.auth.getSession());
+        if (!session) {
+          statusEl.textContent = 'Please sign in first, then click Accept.';
+          return;
+        }
+
+        acceptBtn.disabled = true;
+        acceptBtn.textContent = 'Accepting…';
+        statusEl.textContent = 'Processing invitation…';
+
+        // Call the RPC we created: public.accept_invite(p_token uuid)
+        const { data, error } = await window.sb.rpc('accept_invite', { p_token: token });
+
+        if (error) {
+          console.error('accept_invite error:', error);
+          acceptBtn.disabled = false;
+          acceptBtn.textContent = 'Accept Invite';
+
+          // Friendly messages for common cases
+          let m = error.message || 'Could not accept invite.';
+          if (/invite expired/i.test(m)) m = 'This invite has expired.';
+          if (/invite not found/i.test(m)) m = 'This invite link is invalid.';
+          if (/for .*@/i.test(m)) m = m + ' Please sign out and sign in with that email.';
+          statusEl.textContent = m;
+          return;
+        }
+
+        // Success: data returns rows with (community_id, invitee_email)
+        const row = Array.isArray(data) && data[0] ? data[0] : data;
+        const cid = row?.community_id;
+        statusEl.textContent = 'Invitation accepted ✅ You have been added to the community.';
+
+        if (cid) {
+          openBtn.href = `community.html?id=${cid}`;
+          openBtn.style.display = 'inline-block';
+          openBtn.focus();
+        }
+
+        acceptBtn.style.display = 'none';
+      });
+    });
+  </script>
+</body>
+</html>

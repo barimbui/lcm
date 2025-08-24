@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MY CREDITS</title>
+
+  <link rel="stylesheet" href="styles.css" />
+
+  <!-- Supabase v2 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="supabaseClient.js"></script>
+
+  <style>
+    .wrap { max-width: 1100px; margin: 16px auto; padding: 0 12px; }
+    .grid { display: grid; gap: 12px; grid-template-columns: 1.3fr 1fr; }
+    @media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
+
+    .card {
+      background: var(--panel); border: 1px solid var(--gray-700);
+      border-radius: 16px; padding: 14px; box-shadow: 0 8px 24px rgba(0,0,0,.35);
+    }
+    .row { display:flex; align-items:center; gap:10px; }
+    .spacer { flex: 1 1 auto; }
+
+    .wallet-balance { font-size: 36px; font-weight: 800; color: var(--text); line-height: 1.1; }
+    .balance-label { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+    .pill {
+      display:inline-flex; align-items:center; gap:6px;
+      border: 1px solid var(--gray-700); border-radius: 999px; padding: 4px 10px;
+      color: var(--text); background:#0f0f14; font-size: 12px;
+    }
+
+    .section-title { margin: 0 0 8px; color: var(--text); }
+    .hint { color: var(--muted); font-size: 12px; }
+
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--gray-700); }
+    th { color: var(--muted); font-weight: 600; }
+    tfoot td { font-weight: 800; color: var(--text); }
+
+    .btn-primary { background: var(--purple); color:#fff; border:none; padding:8px 12px; border-radius:10px; cursor:pointer; }
+    .btn-secondary { background: transparent; color: var(--text); border:1px solid var(--gray-700); padding:8px 12px; border-radius:10px; cursor:pointer; }
+    .btn-ghost { background: transparent; border: 1px solid var(--gray-700); border-radius: 10px; color: var(--text); padding: 6px 10px; cursor: pointer; text-decoration: none; }
+
+    .field { margin: 8px 0; display: grid; gap: 6px; }
+    .field input, .field select {
+      width: 100%; background:#0f0f14; color: var(--text);
+      border:1px solid var(--gray-700); border-radius:10px; padding:10px 12px;
+    }
+
+    .activity { display:grid; gap:8px; }
+    .activity-item {
+      display:flex; align-items: center; gap:10px;
+      padding:8px; border:1px solid var(--gray-700); border-radius:12px; background:#0f0f14;
+    }
+    .amt { font-weight: 800; }
+    .pos { color: #8cff9b; }
+    .neg { color: #ff8c8c; }
+    .memo { color: var(--muted); }
+    .badge {
+      display:inline-flex; align-items:center; gap:6px; padding:2px 8px; border-radius:999px;
+      background:#121218; color:var(--muted); border:1px solid var(--purple); font-size: 11px;
+    }
+
+    .right-col .card + .card { margin-top: 12px; }
+  </style>
+</head>
+
+<body class="dark">
+  <header class="topbar">
+    <h1 class="topbar__title">MY CREDITS</h1>
+    <div class="topbar__actions">
+      <a href="dashboard.html" class="btn btn-secondary">← Dashboard</a>
+      <button id="sign-out" class="btn">Sign Out</button>
+    </div>
+  </header>
+
+  <main class="dashboard">
+    <div class="wrap">
+      <p id="whoami" class="welcome-chip">Checking your session…</p>
+
+      <div class="grid">
+        <!-- LEFT: Wallet + Tables -->
+        <div class="left-col">
+          <!-- Wallet -->
+          <section class="card">
+            <div class="row" style="gap:14px;">
+              <div>
+                <div class="wallet-balance"><span id="wallet-balance">0</span> <span style="font-size:18px;">credits</span></div>
+                <div class="balance-label">Wallet balance</div>
+              </div>
+              <div class="spacer"></div>
+              <!-- (Send coming soon) -->
+              <button class="btn-secondary" disabled title="Coming soon">Send</button>
+            </div>
+
+            <div class="row" style="gap:8px; margin-top:10px;">
+              <span class="pill">Bonus: <strong id="bonus-balance">0</strong></span>
+              <span class="pill">Policing: <strong id="policing-balance">0</strong></span>
+            </div>
+
+            <div style="margin-top:12px; border-top:1px solid var(--gray-700); padding-top:12px;">
+              <h3 class="section-title">Redeem Special Credits</h3>
+              <div class="row" style="gap:10px; flex-wrap: wrap;">
+                <div class="field" style="min-width:160px; flex:1;">
+                  <label class="hint">Amount</label>
+                  <input id="redeem-amount" type="number" min="1" step="1" placeholder="e.g., 10" />
+                </div>
+                <div class="field" style="min-width:180px; flex:1;">
+                  <label class="hint">Type</label>
+                  <select id="redeem-kind">
+                    <option value="bonus_hold">Bonus</option>
+                    <option value="policing_hold">Policing</option>
+                  </select>
+                </div>
+                <div class="field" style="min-width:200px; flex:2;">
+                  <label class="hint">Memo (optional)</label>
+                  <input id="redeem-memo" type="text" placeholder="Reason for redemption (optional)" />
+                </div>
+                <div class="field" style="align-self:flex-end;">
+                  <button id="redeem-btn" class="btn-primary">Redeem</button>
+                </div>
+              </div>
+              <div id="redeem-status" class="hint" style="margin-top:6px;"></div>
+            </div>
+          </section>
+
+          <!-- Daily Credits -->
+          <section class="card" style="margin-top:12px;">
+            <div class="row">
+              <h3 class="section-title">Daily Credits</h3>
+              <div class="spacer"></div>
+              <input id="daily-date" type="date" class="btn-ghost" style="padding:8px 10px;" />
+              <button id="daily-go" class="btn-secondary">Go</button>
+              <button id="daily-clear" class="btn-ghost">Last 7</button>
+            </div>
+            <table>
+              <thead>
+                <tr><th>DATE</th><th>CREDITS</th></tr>
+              </thead>
+              <tbody id="daily-body">
+                <tr><td colspan="2" class="hint">Loading…</td></tr>
+              </tbody>
+            </table>
+          </section>
+
+          <!-- Monthly Credits -->
+          <section class="card" style="margin-top:12px;">
+            <h3 class="section-title">Monthly Credits</h3>
+            <table>
+              <thead>
+                <tr><th>MONTH</th><th>CREDITS</th></tr>
+              </thead>
+              <tbody id="monthly-body">
+                <tr><td colspan="2" class="hint">Loading…</td></tr>
+              </tbody>
+              <tfoot>
+                <tr><td>Totals</td><td id="monthly-total">0</td></tr>
+              </tfoot>
+            </table>
+          </section>
+
+          <!-- Annual Super Credits -->
+          <section class="card" style="margin-top:12px;">
+            <h3 class="section-title">Annual Super Credits</h3>
+            <table>
+              <thead>
+                <tr><th>MONTH</th><th>CREDITS</th></tr>
+              </thead>
+              <tbody id="super-body">
+                <tr><td colspan="2" class="hint">Loading…</td></tr>
+              </tbody>
+            </table>
+          </section>
+
+          <!-- Special Credits -->
+          <section class="card" style="margin-top:12px;">
+            <h3 class="section-title">Special Credits</h3>
+            <table>
+              <thead><tr><th>NAME</th><th>CREDITS</th></tr></thead>
+              <tbody id="special-body">
+                <tr><td colspan="2" class="hint">Loading…</td></tr>
+              </tbody>
+            </table>
+          </section>
+        </div>
+
+        <!-- RIGHT: Recent Activity -->
+        <div class="right-col">
+          <section class="card">
+            <div class="row">
+              <h3 class="section-title">Recent Activity</h3>
+              <div class="spacer"></div>
+              <span class="badge" title="Showing your wallet’s last 10 entries">Last 10</span>
+            </div>
+            <div id="activity" class="activity">
+              <div class="hint">Loading…</div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const who = document.getElementById('whoami');
+      const walletEl = document.getElementById('wallet-balance');
+      const bonusEl = document.getElementById('bonus-balance');
+      const policingEl = document.getElementById('policing-balance');
+
+      const dailyBody = document.getElementById('daily-body');
+      const monthlyBody = document.getElementById('monthly-body');
+      const monthlyTotal = document.getElementById('monthly-total');
+      const superBody = document.getElementById('super-body');
+      const specialBody = document.getElementById('special-body');
+
+      const activityEl = document.getElementById('activity');
+
+      const redeemAmount = document.getElementById('redeem-amount');
+      const redeemKind = document.getElementById('redeem-kind');
+      const redeemMemo = document.getElementById('redeem-memo');
+      const redeemBtn = document.getElementById('redeem-btn');
+      const redeemStatus = document.getElementById('redeem-status');
+
+      const dailyDate = document.getElementById('daily-date');
+      const dailyGo = document.getElementById('daily-go');
+      const dailyClear = document.getElementById('daily-clear');
+
+      document.getElementById('sign-out')?.addEventListener('click', async () => {
+        await window.sb.auth.signOut();
+        window.location.href = 'index.html';
+      });
+
+      if (!window.sb) { who.textContent = 'Supabase not initialized.'; return; }
+
+      // Session
+      const { data: { session } } = await window.sb.auth.getSession();
+      if (!session) { window.location.href = 'index.html'; return; }
+      who.textContent = `Signed in as: ${session.user?.email || '(no email)'}`;
+
+      // Ensure personal accounts exist; capture wallet id for recent activity
+      let walletAccountId = null;
+      try {
+        const { data: ensured, error: e1 } = await window.sb.rpc('ensure_user_accounts');
+        if (e1) console.warn('ensure_user_accounts error:', e1.message);
+        walletAccountId = ensured?.wallet || null;
+      } catch (e) { console.warn('ensure_user_accounts threw:', e.message); }
+
+      // Loaders
+      const fmtInt = (n) => (Number(n)||0).toLocaleString();
+
+      async function loadBalances() {
+        // Wallet balance
+        const wb = await window.sb.from('user_wallet_balance').select('balance').maybeSingle();
+        walletEl.textContent = fmtInt(wb.data?.balance || 0);
+
+        // Special balances
+        const sp = await window.sb.from('user_special_balances').select('kind,balance');
+        const rows = sp.data || [];
+        const byKind = new Map(rows.map(r => [r.kind, r.balance||0]));
+        bonusEl.textContent = fmtInt(byKind.get('bonus_hold') || 0);
+        policingEl.textContent = fmtInt(byKind.get('policing_hold') || 0);
+      }
+
+      async function loadDaily({ exactDate=null } = {}) {
+        dailyBody.innerHTML = '<tr><td colspan="2" class="hint">Loading…</td></tr>';
+        let rows = [];
+        if (exactDate) {
+          const { data, error } = await window.sb
+            .from('user_daily_credits')
+            .select('day, credits')
+            .eq('day', exactDate)
+            .order('day', { ascending: false });
+          if (!error) rows = data || [];
+        } else {
+          const { data, error } = await window.sb
+            .from('user_daily_credits')
+            .select('day, credits')
+            .order('day', { ascending: false })
+            .limit(7);
+          if (!error) rows = data || [];
+        }
+
+        if (!rows.length) {
+          dailyBody.innerHTML = '<tr><td colspan="2" class="hint">No credits found.</td></tr>';
+          return;
+        }
+        dailyBody.innerHTML = '';
+        for (const r of rows) {
+          const d = new Date(r.day);
+          const pretty = d.toLocaleDateString(undefined, { year:'numeric', month:'short', day:'2-digit' });
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${pretty}</td><td>${fmtInt(r.credits)}</td>`;
+          dailyBody.appendChild(tr);
+        }
+      }
+
+      async function loadMonthly() {
+        monthlyBody.innerHTML = '<tr><td colspan="2" class="hint">Loading…</td></tr>';
+        const { data, error } = await window.sb
+          .from('user_monthly_credits')
+          .select('month, credits')
+          .order('month', { ascending: false });
+        const rows = error ? [] : (data || []);
+        if (!rows.length) {
+          monthlyBody.innerHTML = '<tr><td colspan="2" class="hint">No data.</td></tr>';
+          monthlyTotal.textContent = '0';
+          return;
+        }
+        monthlyBody.innerHTML = '';
+        let total = 0;
+        for (const r of rows) {
+          total += Number(r.credits)||0;
+          // r.month is 'YYYY-MM' -> pretty label
+          const [y, m] = String(r.month).split('-');
+          const pretty = new Date(Number(y), Number(m)-1, 1).toLocaleDateString(undefined, { year:'numeric', month:'long' });
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${pretty}</td><td>${fmtInt(r.credits)}</td>`;
+          monthlyBody.appendChild(tr);
+        }
+        monthlyTotal.textContent = fmtInt(total);
+      }
+
+      async function loadSuper() {
+        superBody.innerHTML = '<tr><td colspan="2" class="hint">Loading…</td></tr>';
+        const { data, error } = await window.sb
+          .from('user_annual_super_credits')
+          .select('month, credits')
+          .order('month', { ascending: false });
+        const rows = error ? [] : (data || []);
+        if (!rows.length) {
+          superBody.innerHTML = '<tr><td colspan="2" class="hint">No super credits yet.</td></tr>';
+          return;
+        }
+        superBody.innerHTML = '';
+        for (const r of rows) {
+          const [y, m] = String(r.month).split('-');
+          const pretty = new Date(Number(y), Number(m)-1, 1).toLocaleDateString(undefined, { year:'numeric', month:'long' });
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${pretty}</td><td>${fmtInt(r.credits)}</td>`;
+          superBody.appendChild(tr);
+        }
+      }
+
+      async function loadSpecialTable() {
+        const { data, error } = await window.sb
+          .from('user_special_balances')
+          .select('kind,balance');
+        const rows = error ? [] : (data || []);
+        const byKind = new Map(rows.map(r => [r.kind, r.balance||0]));
+        specialBody.innerHTML = `
+          <tr><td>Bonus Credits</td><td>${fmtInt(byKind.get('bonus_hold') || 0)}</td></tr>
+          <tr><td>Policing Credits</td><td>${fmtInt(byKind.get('policing_hold') || 0)}</td></tr>
+        `;
+      }
+
+      async function loadActivity() {
+        activityEl.innerHTML = '<div class="hint">Loading…</div>';
+        if (!walletAccountId) {
+          // Try to infer wallet id by querying accounts
+          const guess = await window.sb.from('accounts').select('id').eq('kind','wallet').limit(1);
+          walletAccountId = guess.data?.[0]?.id || null;
+        }
+        if (!walletAccountId) { activityEl.innerHTML = '<div class="hint">No wallet yet.</div>'; return; }
+
+        // Fetch last 10 entries for the wallet
+        const { data: entries, error } = await window.sb
+          .from('entries')
+          .select('id, amount, tx_id')
+          .eq('account_id', walletAccountId)
+          .order('id', { ascending: false })
+          .limit(10);
+
+        if (error) { activityEl.innerHTML = `<div class="hint">${error.message}</div>`; return; }
+        if (!entries || !entries.length) { activityEl.innerHTML = '<div class="hint">No recent activity.</div>'; return; }
+
+        // Fetch transactions for these tx_ids (dedupe)
+        const txIds = [...new Set(entries.map(e => e.tx_id))];
+        const { data: txs } = await window.sb
+          .from('transactions')
+          .select('id, type, memo, created_at, is_super, community_id')
+          .in('id', txIds);
+
+        const txById = new Map((txs||[]).map(t => [t.id, t]));
+
+        activityEl.innerHTML = '';
+        for (const e of entries) {
+          const tx = txById.get(e.tx_id);
+          const when = tx?.created_at ? new Date(tx.created_at) : null;
+          const whenStr = when ? when.toLocaleString() : '';
+          const amt = Number(e.amount)||0;
+          const signCls = amt >= 0 ? 'pos' : 'neg';
+          const kindLabel = tx?.type ? tx.type.replace('_',' ') : 'entry';
+          const superTag = tx?.is_super ? ' • Super' : '';
+          const memo = tx?.memo ? ` — <span class="memo">${tx.memo}</span>` : '';
+          const div = document.createElement('div');
+          div.className = 'activity-item';
+          div.innerHTML = `
+            <div class="amt ${signCls}">${amt >= 0 ? '+' : ''}${fmtInt(amt)}</div>
+            <div class="spacer"></div>
+            <div class="memo">${kindLabel}${superTag}${memo}</div>
+            <div class="spacer"></div>
+            <div class="hint">${whenStr}</div>
+          `;
+          activityEl.appendChild(div);
+        }
+      }
+
+      // Redeem handler
+      redeemBtn.addEventListener('click', async () => {
+        const amount = parseInt(redeemAmount.value, 10);
+        const kind = redeemKind.value;
+        const memo = redeemMemo.value.trim() || null;
+
+        if (!amount || amount <= 0) {
+          redeemStatus.textContent = 'Enter a positive amount.';
+          return;
+        }
+        redeemStatus.textContent = 'Redeeming…';
+        redeemBtn.disabled = true;
+
+        const { error } = await window.sb.rpc('redeem_special', { p_kind: kind, p_amount: amount, p_memo: memo });
+        if (error) {
+          redeemStatus.textContent = error.message;
+          redeemBtn.disabled = false;
+          return;
+        }
+
+        redeemStatus.textContent = 'Redeemed ✅';
+        redeemAmount.value = '';
+        redeemMemo.value = '';
+
+        await loadBalances();
+        await loadDaily();      // reflect today’s inflow
+        await loadMonthly();    // totals update
+        await loadActivity();   // recent transaction appears
+
+        setTimeout(() => { redeemStatus.textContent = ''; redeemBtn.disabled = false; }, 800);
+      });
+
+      // Daily date filter
+      dailyGo.addEventListener('click', async () => {
+        const v = dailyDate.value;
+        if (!v) return;
+        await loadDaily({ exactDate: v });
+      });
+      dailyClear.addEventListener('click', async () => {
+        dailyDate.value = '';
+        await loadDaily();
+      });
+
+      // Initial loads
+      await loadBalances();
+      await loadDaily();
+      await loadMonthly();
+      await loadSuper();
+      await loadSpecialTable();
+      await loadActivity();
+    });
+  </script>
+</body>
+</html>

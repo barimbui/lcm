@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>LIFE CREDITS MANNA – Login</title>
+
+  <link rel="stylesheet" href="styles.css" />
+
+  <!-- Supabase v2 CDN (must load before supabaseClient.js & app.js) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Your initialized client (uses your URL & anon key) -->
+  <script defer src="supabaseClient.js"></script>
+
+  <!-- (Optional) utilities if you need them -->
+  <script defer src="utils.js"></script>
+
+  <!-- Login logic -->
+  <script defer src="app.js"></script>
+</head>
+
+<body class="dark">
+  <!-- Top bar -->
+  <header class="topbar">
+    <h1 class="topbar__title">LIFE CREDITS MANNA</h1>
+    <div class="topbar__actions"></div>
+  </header>
+
+  <main class="auth">
+    <form id="login-form" class="card">
+      <label class="label">
+        <span>Name / ID / Username / Email</span>
+        <input id="login-identifier" type="text" class="input" autocomplete="username" required />
+      </label>
+
+      <label class="label">
+        <span>Password</span>
+        <input id="login-password" type="password" class="input" autocomplete="current-password" required />
+      </label>
+
+      <div class="row between">
+        <a href="#" id="forgot-identifier" class="link">Forgot Name/ID/Username/Email</a>
+        <a href="#" id="forgot-password" class="link">Forgot Password</a>
+      </div>
+
+      <div class="row gap" style="margin-top:12px;">
+        <button type="submit" class="btn btn-primary">SIGN IN</button>
+        <a href="signup.html" class="btn btn-secondary">CREATE ACCOUNT</a>
+      </div>
+
+      <div id="login-status" class="status"></div>
+    </form>
+  </main>
+</body>
+</html>

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>LCM — Community</title>
+
+  <link rel="stylesheet" href="styles.css" />
+
+  <!-- Supabase v2 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="supabaseClient.js"></script>
+
+  <style>
+    .wrap { max-width: 1100px; margin: 16px auto; padding: 0 12px; }
+    .header { display:flex; align-items:center; gap:10px; margin: 10px 0 14px; }
+    .title { margin: 0; color: var(--text); }
+    .meta  { color: var(--muted); }
+    .grid { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(240px, 1fr)); }
+    @media (max-width: 980px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 560px) { .grid { grid-template-columns: 1fr; } }
+
+    .card {
+      background: var(--panel); border: 1px solid var(--gray-700);
+      border-radius: 16px; padding: 12px;
+      display: grid; grid-template-columns: 64px 1fr; gap: 12px;
+      align-items: center; box-shadow: 0 8px 24px rgba(0,0,0,.35);
+    }
+    .avatar {
+      width:64px;height:64px;border-radius:50%;object-fit:cover;background:#0f0f14; display:block;
+    }
+    .name { color: var(--text); font-weight: 700; }
+    .bio  { color: var(--muted); font-size: .95rem; margin-top: 4px; }
+    .empty {
+      color: var(--muted); background: #0f0f14; border: 1px dashed var(--gray-700);
+      border-radius: 14px; padding: 16px; text-align:center;
+    }
+  </style>
+</head>
+
+<body class="dark">
+  <header class="topbar">
+    <h1 class="topbar__title">LCM — Community</h1>
+    <div class="topbar__actions">
+      <a href="communities.html" class="btn btn-secondary">← Communities</a>
+      <button id="sign-out" class="btn">Sign Out</button>
+    </div>
+  </header>
+
+  <main class="dashboard">
+    <div class="wrap">
+      <div class="header">
+        <h2 id="c-title" class="title">Loading…</h2>
+        <div class="meta" id="c-meta"></div>
+      </div>
+
+      <div id="status" class="welcome-chip">Checking your session…</div>
+
+      <div id="members-grid" class="grid" style="margin-top: 10px;"></div>
+      <div id="empty" class="empty" style="display:none; margin-top: 10px;">
+        No members found yet.
+      </div>
+    </div>
+  </main>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const status = document.getElementById('status');
+      const title  = document.getElementById('c-title');
+      const meta   = document.getElementById('c-meta');
+      const grid   = document.getElementById('members-grid');
+      const empty  = document.getElementById('empty');
+
+      document.getElementById('sign-out')?.addEventListener('click', async () => {
+        await window.sb.auth.signOut();
+        window.location.href = 'index.html';
+      });
+
+      if (!window.sb) { status.textContent = 'Supabase not initialized.'; return; }
+
+      const { data: { session } } = await window.sb.auth.getSession();
+      if (!session) { window.location.href = 'index.html'; return; }
+      status.textContent = `Signed in as: ${session.user?.email || '(no email)'}`;
+
+      // URL params: either ?code=HOME (built-in) OR ?id=<uuid> (custom)
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('code');
+      const id   = params.get('id');
+
+      const setTitle = (t, m = '') => { title.textContent = t; meta.textContent = m; };
+      const makeCard = ({ avatar_url, display_name, bio }) => {
+        const div = document.createElement('div');
+        div.className = 'card';
+        const fallback = 'https://picsum.photos/seed/lcm-avatar/96';
+        div.innerHTML = `
+          <img class="avatar" src="${avatar_url || fallback}" alt="" onerror="this.src='${fallback}'" />
+          <div>
+            <div class="name">${display_name || '(Unnamed user)'}</div>
+            <div class="bio">${bio ? bio : ''}</div>
+          </div>
+        `;
+        return div;
+      };
+
+      if (code && !id) {
+        // ===== Built-in community (HOME/SCHOOL/CHURCH/WORK/TEAM): show your Verifiers =====
+        const { data: comm, error: commErr } = await window.sb
+          .from('communities')
+          .select('label')
+          .eq('code', code)
+          .maybeSingle();
+        if (commErr) { console.error(commErr); setTitle(code); }
+        else { setTitle(comm?.label || code, 'Built-in community'); }
+
+        const { data: vs, error: vErr } = await window.sb
+          .from('verifiers')
+          .select('name')
+          .eq('owner_user_id', session.user.id)
+          .eq('community', code)
+          .order('name', { ascending: true });
+
+        if (vErr) { console.error(vErr); status.textContent = 'Could not load verifiers.'; return; }
+        status.textContent = `${vs?.length || 0} verifier(s)`;
+
+        grid.innerHTML = '';
+        if (!vs || vs.length === 0) {
+          empty.style.display = 'block';
+        } else {
+          empty.style.display = 'none';
+          for (const v of vs) {
+            grid.appendChild(makeCard({
+              avatar_url: null,
+              display_name: v.name,
+              bio: ''
+            }));
+          }
+        }
+        return;
+      }
+
+      if (id && !code) {
+        // ===== Custom community: show MEMBERS with real profiles =====
+        const { data: comm, error: commErr } = await window.sb
+          .from('user_custom_communities')
+          .select('id, name, slug, is_private, owner_user_id')
+          .eq('id', id)
+          .maybeSingle();
+
+        if (commErr || !comm) {
+          console.error(commErr);
+          setTitle('Community not found');
+          status.textContent = 'This community could not be loaded.';
+          return;
+        }
+        setTitle(comm.name, `${comm.is_private ? 'Private' : 'Public'} • ${comm.slug}`);
+
+        const amOwner = (comm.owner_user_id === session.user.id);
+
+        grid.innerHTML = '';
+        empty.style.display = 'none';
+
+        if (amOwner) {
+          // Owner: SECURITY DEFINER RPC for reliable names/avatars
+          const { data: rows, error } = await window.sb.rpc('owner_member_profiles', { p_id: comm.id });
+          if (error) { console.error(error); status.textContent = error.message || 'Could not load members.'; return; }
+          status.textContent = `${rows?.length || 0} member(s)`;
+
+          // Best-effort: try to fetch bios; RLS may hide them, that's OK.
+          let bioMap = new Map();
+          try {
+            const ids = (rows || []).map(r => r.user_id);
+            if (ids.length) {
+              const { data: bios } = await window.sb
+                .from('user_profiles')
+                .select('user_id, bio')
+                .in('user_id', ids);
+              for (const b of (bios || [])) bioMap.set(b.user_id, b.bio);
+            }
+          } catch (_) {}
+
+          if (!rows || rows.length === 0) {
+            empty.style.display = 'block';
+          } else {
+            for (const m of rows) {
+              grid.appendChild(makeCard({
+                avatar_url: m.avatar_url || null,
+                display_name: m.display_name || m.user_id,
+                bio: bioMap.get(m.user_id) || ''
+              }));
+            }
+          }
+          return;
+        } else {
+          // Non-owner: RLS-safe path (your original flow)
+          const { data: members, error: mErr } = await window.sb
+            .from('community_members')
+            .select('user_id')
+            .eq('community_id', comm.id);
+
+          if (mErr) { console.error(mErr); status.textContent = 'Could not load members.'; return; }
+
+          const ids = (members || []).map(m => m.user_id);
+          status.textContent = `${ids.length} member(s)`;
+
+          if (ids.length === 0) {
+            empty.style.display = 'block';
+            return;
+          }
+
+          const { data: profiles, error: pErr } = await window.sb
+            .from('user_profiles')
+            .select('user_id, display_name, avatar_url, bio')
+            .in('user_id', ids);
+
+          if (pErr) { console.error(pErr); status.textContent = 'Could not load profiles.'; return; }
+
+          const byId = new Map((profiles || []).map(p => [p.user_id, p]));
+          for (const uid of ids) {
+            const p = byId.get(uid) || {};
+            grid.appendChild(makeCard({
+              avatar_url: p.avatar_url,
+              display_name: p.display_name || '(Unnamed user)',
+              bio: p.bio || ''
+            }));
+          }
+          return;
+        }
+      }
+
+      setTitle('Community');
+      status.textContent = 'Missing community id or code in the URL.';
+    });
+  </script>
+</body>
+</html>

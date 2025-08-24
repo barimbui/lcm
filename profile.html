@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>LCM — Profile</title>
+
+  <!-- Shared theme -->
+  <link rel="stylesheet" href="styles.css" />
+
+  <!-- Supabase v2 (must load before supabaseClient.js & app.js) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="supabaseClient.js"></script>
+  <script defer src="app.js"></script>
+
+  <style>
+    /* Matches your dark + purple theme without changing fundamentals */
+    .profile-wrap {
+      background: var(--panel);
+      border: 1px solid var(--gray-700);
+      border-radius: 16px;
+      padding: 16px;
+      margin: 16px auto;
+      max-width: 880px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.35);
+    }
+    .profile-header {
+      display: flex; align-items: center; gap: 14px;
+      margin-bottom: 12px;
+    }
+    .profile-header .name {
+      font-size: 1.1rem; font-weight: 700; color: var(--text);
+    }
+    .profile-header .bio {
+      color: var(--muted); font-size: .95rem;
+    }
+    .profile-fields .field { margin-bottom: 12px; }
+    .profile-fields label { display:block; margin-bottom: 6px; color: var(--muted); }
+    .profile-fields input, .profile-fields textarea {
+      width: 100%;
+      background: #0f0f14;
+      color: var(--text);
+      border: 1px solid var(--gray-700);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+    .profile-actions { display:flex; align-items:center; gap:12px; margin-top: 8px; }
+    .btn-back { margin-left: auto; }
+  </style>
+</head>
+
+<body class="dark">
+  <header class="topbar">
+    <h1 class="topbar__title">LCM — Profile</h1>
+    <div class="topbar__actions">
+      <a href="dashboard.html" class="btn btn-secondary btn-back">← Dashboard</a>
+      <button id="sign-out" class="btn">Sign Out</button>
+    </div>
+  </header>
+
+  <main class="dashboard">
+    <div class="profile-wrap">
+      <!-- Top header now shows your avatar always -->
+      <div class="profile-header">
+        <img id="profile-avatar-preview" alt="Avatar"
+             style="width:72px;height:72px;border-radius:50%;object-fit:cover;display:none;" />
+        <div>
+          <div id="profile-view-name" class="name">Your name</div>
+          <div id="profile-view-bio" class="bio">Your bio will show here</div>
+        </div>
+      </div>
+
+      <p id="profile-info" class="welcome-chip">Loading…</p>
+
+      <!-- EDIT FIELDS (same IDs the JS expects) -->
+      <div class="profile-fields">
+        <div class="field">
+          <label for="profile-display-name">Display Name</label>
+          <input id="profile-display-name" type="text" placeholder="Your name" />
+        </div>
+
+        <div class="field">
+          <label for="profile-avatar-url">Avatar URL</label>
+          <input id="profile-avatar-url" type="url" placeholder="https://…" />
+        </div>
+
+        <div class="field">
+          <label for="profile-bio">Bio</label>
+          <textarea id="profile-bio" rows="3" placeholder="A short description about you…"></textarea>
+        </div>
+
+        <div class="profile-actions">
+          <button id="profile-save-btn" class="btn btn-primary">Save Profile</button>
+          <span id="profile-save-status"></span>
+        </div>
+
+        <div style="margin-top:12px; color:var(--muted);">
+          Tip: paste an image link (e.g., https://picsum.photos/200) to set your avatar.
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Minimal page glue: session display + sign-out like your dashboard
+    document.addEventListener("DOMContentLoaded", async () => {
+      const info = document.getElementById("profile-info");
+
+      if (!window.sb) {
+        if (info) info.textContent = "Supabase not initialized.";
+        return;
+      }
+
+      // Sign out
+      const out = document.getElementById("sign-out");
+      if (out) {
+        out.addEventListener("click", async () => {
+          await window.sb.auth.signOut();
+          window.location.href = "index.html";
+        });
+      }
+
+      // Show who is signed in; redirect to login if not
+      const { data: { session } } = await window.sb.auth.getSession();
+      if (!session) {
+        window.location.href = "index.html";
+        return;
+      }
+      if (info) info.textContent = `Signed in as: ${session.user?.email || "(no email)"}`;
+    });
+  </script>
+</body>
+</html>

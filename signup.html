@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>LCM SIGN UP PAGE</title>
+
+  <!-- Styles (optional for now; keeps dark/purple feel if you add styles.css later) -->
+  <link rel="stylesheet" href="styles.css" />
+
+  <!-- 1) Supabase v2 CDN MUST load before supabaseClient.js -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- 2) Your initialized client (already created with your URL & anon key) -->
+  <script defer src="supabaseClient.js"></script>
+
+  <!-- 3) Utilities (we’ll add this in the next step: hashing helper for ID/BC) -->
+  <script defer src="utils.js"></script>
+
+  <!-- 4) Sign-up logic (we’ll add this right after utils.js in the following step) -->
+  <script defer src="signup.js"></script>
+</head>
+<body class="dark">
+  <header class="topbar">
+    <h1 class="topbar__title">LCM SIGN UP PAGE</h1>
+    <div class="topbar__actions"></div>
+  </header>
+
+  <main class="auth">
+    <form id="signup-form" class="card">
+      <div class="grid-3">
+        <label class="label">
+          <span>First Name</span>
+          <input id="first-name" class="input" required />
+        </label>
+        <label class="label">
+          <span>Middle Name (optional)</span>
+          <input id="middle-name" class="input" />
+        </label>
+        <label class="label">
+          <span>Last Name</span>
+          <input id="last-name" class="input" required />
+        </label>
+      </div>
+
+      <label class="label">
+        <span>Username (optional, must be unique if set)</span>
+        <input id="username" class="input" />
+      </label>
+
+      <label class="label">
+        <span>ID / BC Number (required)</span>
+        <input id="gov-id" class="input" required />
+      </label>
+
+      <div class="grid-2">
+        <label class="label">
+          <span>Email (recommended)</span>
+          <input id="email" type="email" class="input" />
+        </label>
+        <label class="label">
+          <span>Phone (optional)</span>
+          <input id="phone" class="input" />
+        </label>
+      </div>
+
+      <label class="label">
+        <span>Password</span>
+        <input id="password" type="password" class="input" autocomplete="new-password" required />
+      </label>
+
+      <div class="row gap" style="margin-top:12px;">
+        <button type="submit" class="btn btn-primary">CREATE ACCOUNT</button>
+        <a href="index.html" class="btn btn-secondary">Back to Login</a>
+      </div>
+
+      <div id="signup-status" class="status"></div>
+    </form>
+  </main>
+</body>
+</html>

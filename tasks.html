@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Tasks – LCM</title>
+
+  <!-- Theme -->
+  <link rel="stylesheet" href="styles.css" />
+
+  <!-- Supabase (must come before supabaseClient.js) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="supabaseClient.js"></script>
+
+  <style>
+    .page-wrap { max-width: 1040px; margin: 32px auto; padding: 0 16px; }
+    .title-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+    .title-row h2 { margin:0; letter-spacing:.3px; }
+    .controls { display:flex; gap: 10px; flex-wrap: wrap; }
+
+    .input-wrap, .select-wrap {
+      position: relative; min-width: 220px; flex: 1 1 240px;
+    }
+
+    /* Make all inputs/selects same height and remove odd arrows/carets */
+    .input { height: 40px; line-height: 40px; }
+    .label .caret { display: none !important; }
+
+    /* Centered submit button styling */
+    .submit-wrap {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      margin-top: 15px;
+    }
+    .submit-wrap .btn-primary {
+      width: 240px;
+      height: 48px;
+      font-size: 16px;
+      font-weight: bold;
+    }
+
+    /* Table */
+    .table-card { margin-top:16px; }
+    table { width:100%; border-collapse: collapse; }
+    th, td {
+      padding: 12px 10px; border-bottom: 1px solid var(--gray-600); text-align:left;
+    }
+    thead th { color: var(--muted); font-weight:700; text-transform: uppercase; font-size: 12px; }
+    tbody tr:hover { background:#13131a; }
+    .no { width:56px; }
+    .progress { display:flex; gap:6px; }
+    .tick {
+      width: 16px; height: 16px; border-radius: 4px;
+      border: 1px solid var(--gray-600); background:#0e0e13;
+    }
+    .tick.ok { background: var(--green); border-color: var(--green); }
+
+    .date-banner {
+      font-weight: 700; margin: 8px 0 0; color: var(--muted);
+    }
+
+    .pill { display:inline-block; padding:6px 10px; border-radius:999px; border:1px solid var(--gray-600); color:var(--muted); }
+
+    .help { color: var(--muted); font-size: 12px; margin-top: 4px; }
+
+    /* ===== Credits cell & icon buttons look like a separate column ===== */
+    .credits-cell {
+      display: flex;
+      align-items: center;
+      gap: 12px;           /* space between number and icons */
+    }
+    .credits-cell .spacer {
+      flex: 1;             /* pushes icons to the far right */
+    }
+    .icon-btn {
+      background: none;
+      border: 0;
+      padding: 0 4px;      /* small clickable area */
+      font-size: 18px;     /* emoji size */
+      line-height: 1;
+      cursor: pointer;
+    }
+    /* Allow restore button to keep pointer cursor */
+    .icon-btn.restore-btn {
+      cursor: pointer !important;
+    }
+    .icon-btn[disabled] {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    /* ===== New: visual states for disabled icons and archived/restored rows ===== */
+    .icon-btn.is-disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+    .archived-row {
+      opacity: 0.55;
+      filter: grayscale(0.35);
+    }
+    .row-flash {
+      animation: rowFlash 900ms ease-out 1;
+    }
+    @keyframes rowFlash {
+      0%   { background: rgba(80,180,120,0.25); }
+      100% { background: transparent; }
+    }
+  </style>
+</head>
+<body class="dark">
+  <header class="topbar">
+    <h1 class="topbar__title">LCM TASKS</h1>
+    <div class="topbar__actions">
+      <a class="btn" href="dashboard.html">Back to Dashboard</a>
+    </div>
+  </header>
+
+  <main class="page-wrap">
+    <!-- Top row: Task / Community / Verifier -->
+    <div class="card">
+      <div class="title-row">
+        <h2>Log a Task</h2>
+        <span class="pill">Today</span>
+      </div>
+
+      <form id="task-form">
+        <div class="controls">
+          <div class="input-wrap">
+            <label class="label">
+              <span>Task</span>
+              <!-- Autosuggest enabled via datalist -->
+              <input id="task-input" class="input" placeholder="e.g., Made my bed" autocomplete="off" list="task-suggestions" />
+              <datalist id="task-suggestions"></datalist>
+            </label>
+          </div>
+
+          <div class="select-wrap">
+            <label class="label">
+              <span>Community</span>
+              <select id="community-select" class="input" required>
+                <option value="">Choose…</option>
+                <option value="HOME">HOME</option>
+                <option value="CHURCH">CHURCH</option>
+                <option value="SCHOOL">SCHOOL</option>
+                <option value="TEAM">TEAM</option>
+                <option value="WORK">WORK</option>
+              </select>
+            </label>
+          </div>
+
+          <!-- Verifier single-select (required). Supports ALL (handled in tasks.js). -->
+          <div class="select-wrap">
+            <label class="label">
+              <span>Verifier</span>
+              <select id="verifier-select" class="input" required>
+                <option value="">Choose…</option>
+                <!-- Options loaded by tasks.js (includes ALL VERIFIERS) -->
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <!-- Submit button centered below -->
+        <div class="submit-wrap">
+          <button type="submit" class="btn btn-primary">SUBMIT</button>
+        </div>
+      </form>
+
+      <div id="task-status" class="status"></div>
+    </div>
+
+    <!-- Today’s Tasks -->
+    <div class="card table-card">
+      <div class="date-banner" id="today-banner"></div>
+      <div class="table-wrap">
+        <table aria-label="Today’s Tasks">
+          <thead>
+            <tr>
+              <th class="no">No.</th>
+              <th>Task</th>
+              <th>Community</th>
+              <th>Verifications</th>
+              <th>Credits</th>
+            </tr>
+          </thead>
+          <tbody id="tasks-tbody">
+            <tr>
+              <td>1</td>
+              <td>Made my bed</td>
+              <td>HOME</td>
+              <td>
+                <div class="progress" title="2 verified, 3 remaining">
+                  <span class="tick ok"></span>
+                  <span class="tick ok"></span>
+                  <span class="tick"></span>
+                  <span class="tick"></span>
+                  <span class="tick"></span>
+                </div>
+              </td>
+              <td>0</td>
+            </tr>
+            <tr>
+              <td>2</td>
+              <td>Tidied living room</td>
+              <td>HOME</td>
+              <td>
+                <div class="progress" title="1 verified, 0 remaining (HOME threshold 1)">
+                  <span class="tick ok"></span>
+                </div>
+              </td>
+              <td>1</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Keep only the date banner updater
+    document.addEventListener("DOMContentLoaded", () => {
+      const banner = document.getElementById("today-banner");
+      const d = new Date();
+      const opts = { day: "numeric", month: "long", year: "numeric" };
+      banner.textContent = d.toLocaleDateString(undefined, opts);
+    });
+  </script>
+
+  <!-- Load the real logic -->
+  <script defer src="tasks.js?v=arch2"></script>
+
+
+</body>
+</html>

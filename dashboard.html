@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>LCM DASHBOARD</title>
+
+  <!-- Your theme -->
+  <link rel="stylesheet" href="styles.css" />
+
+  <!-- Supabase (must come before supabaseClient.js) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="supabaseClient.js"></script>
+
+  <!-- Orbit + welcome styles (page-specific) -->
+  <style>
+    .orbit-wrap {
+      position: relative;
+      height: calc(100vh - 180px);
+      max-height: 860px;
+      margin: 16px auto 24px;
+      aspect-ratio: 1/1;
+    }
+    .orbit {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      /* grid center for the big Tasks circle */
+      display: grid;
+      place-items: center;
+    }
+
+    /* Center (Tasks) */
+    .node-center {
+      position: absolute;
+      width: 220px; height: 220px;
+      border-radius: 50%;
+      background: var(--purple);
+      display: grid; place-items: center;
+      font-weight: 800; text-transform: uppercase;
+      letter-spacing: .5px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.45);
+      cursor: pointer; user-select: none;
+      border: 1px solid rgba(255,255,255,.08);
+      overflow: hidden;
+      z-index: 2;
+    }
+    /* BIG Tasks emoji icon (~3/4 of circle) */
+    .node-center .icon.tasks-icon {
+      font-size: 160px;  /* ~220 * 0.73 */
+      line-height: 1;
+      display: block;
+    }
+    /* Tasks label: hidden until hover/focus, forced white */
+    .node-center span {
+      opacity: 0;
+      transition: opacity .2s;
+      color: #fff;        /* ensure white on hover */
+    }
+    .node-center:focus span,
+    .node-center:hover span { opacity: 1; }
+
+    /* Orbit ring for reference */
+    .ring {
+      position: absolute; inset: 0;
+      border-radius: 50%;
+      border: 1px dashed var(--gray-600);
+    }
+
+    /* === Animated orbit === */
+    .orbit-spin {
+      position: absolute;
+      inset: 0;
+      transform-origin: 50% 50%;
+      animation: spin 60s linear infinite;
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+
+    /* Orbit nodes (smaller circles) */
+    .node {
+      position: absolute;
+      width: 98px; height: 98px;
+      border-radius: 50%;
+      background: var(--panel);
+      border: 1px solid var(--gray-600);
+      display: grid; place-items: center;
+      text-align: center;
+      padding: 0;
+      box-shadow: 0 8px 24px rgba(0,0,0,.35);
+      cursor: pointer; user-select: none;
+      outline: none;
+
+      /* Keep each node upright while the parent spins */
+      transform-origin: 50% 50%;
+      animation: unspin 60s linear infinite reverse;
+    }
+    @keyframes unspin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+
+    .node:focus, .node:hover { outline: 3px solid rgba(107,63,160,.35); }
+
+    /* Satellite icons (colorful emoji) */
+    .icon {
+      font-size: 56px;
+      line-height: 1;
+      display: block;
+      margin: 0 auto;
+    }
+
+    /* Labels: hidden until hover/focus, shown below the circle, white */
+    .node .label {
+      position: absolute;
+      bottom: -28px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,.55);
+      padding: 4px 8px;
+      border-radius: 8px;
+      color: #fff;   /* white */
+      font-size: 12px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s;
+      white-space: nowrap;
+    }
+    .node:hover .label,
+    .node:focus .label { opacity: 1; }
+
+    /* Welcome panel styled in LCM colors */
+    .welcome-panel {
+      background: var(--panel);
+      border: 2px solid var(--purple);
+      border-radius: 20px;
+      padding: 22px 24px;
+      text-align: center;
+      max-width: 560px;
+      margin: 16px auto 8px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.4);
+    }
+    .welcome-panel h2 {
+      margin: 0 0 8px;
+      color: var(--text);
+      letter-spacing: .3px;
+    }
+    .welcome-chip {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #121218;
+      border: 1px solid var(--purple);
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    /* Hide fallback grid on desktop/tablet */
+    .fallback-grid { display: none; }
+
+    @media (max-width: 780px) {
+      .node-center { width: 180px; height: 180px; }
+      .node-center .icon.tasks-icon { font-size: 130px; }
+      .node { width: 86px; height: 86px; }
+      .icon { font-size: 48px; }
+    }
+    @media (max-width: 560px) {
+      /* On very small screens: hide the orbit, show fallback grid */
+      .orbit { display: none; }
+      .fallback-grid {
+        display: grid; gap: 12px; margin: 24px auto; max-width: 720px;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      }
+      .tile {
+        background: var(--panel); border: 1px solid var(--gray-600);
+        border-radius: 16px; padding: 16px; text-align: center;
+        box-shadow: 0 4px 16px rgba(0,0,0,.35);
+        cursor: pointer;
+      }
+      .tile .icon { font-size: 24px; }
+      .tile .tlabel { display: block; margin-top: 8px; color: var(--muted); }
+    }
+  </style>
+</head>
+<body class="dark">
+  <header class="topbar">
+    <h1 class="topbar__title">LCM DASHBOARD</h1>
+    <div class="topbar__actions">
+      <button id="sign-out" class="btn">Sign Out</button>
+    </div>
+  </header>
+
+  <main class="dashboard">
+    <!-- Welcome -->
+    <div class="welcome-panel">
+      <h2>Welcome to LCM</h2>
+      <p id="whoami" class="welcome-chip">Checking your session…</p>
+    </div>
+
+    <!-- Orbit Hub -->
+    <section class="orbit-wrap">
+      <div class="orbit" aria-label="LCM Navigation Hub">
+        <div class="ring" aria-hidden="true"></div>
+
+        <!-- Center: TASKS (colorful emoji icon) -->
+        <button class="node-center" id="go-tasks" title="Tasks" aria-label="Tasks">
+          <div class="icon tasks-icon" aria-hidden="true">📋</div>
+          <span>Tasks</span>
+        </button>
+
+        <!-- Spinning container for the 7 orbiting nodes -->
+        <div class="orbit-spin">
+          <button class="node" data-target="profile.html" title="Profile" aria-label="Profile">
+            <div class="icon">🧑</div><div class="label">Profile</div>
+          </button>
+
+          <button class="node" data-target="communities.html" title="Communities" aria-label="Communities">
+            <div class="icon">👥</div><div class="label">Communities</div>
+          </button>
+
+          <button class="node" data-target="credits.html" title="Credits" aria-label="Credits">
+            <div class="icon">💎</div><div class="label">Credits</div>
+          </button>
+
+          <button class="node" data-target="stats.html" title="Statistics" aria-label="Statistics">
+            <div class="icon">📊</div><div class="label">Stats</div>
+          </button>
+
+          <button class="node" data-target="notifications.html" title="Notifications & Messages" aria-label="Notifications and Messages">
+            <div class="icon">🔔</div><div class="label">Notifications</div>
+          </button>
+
+          <button class="node" data-target="policing.html" title="Policing" aria-label="Policing">
+            <div class="icon">👮</div><div class="label">Policing</div>
+          </button>
+
+          <button class="node" data-target="settings.html" title="Settings" aria-label="Settings">
+            <div class="icon">⚙️</div><div class="label">Settings</div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Mobile fallback grid -->
+      <div class="fallback-grid" aria-label="LCM Navigation (Grid)">
+        <div class="tile" data-target="tasks.html"><div class="icon">📋</div><span class="tlabel">Tasks</span></div>
+        <div class="tile" data-target="profile.html"><div class="icon">🧑</div><span class="tlabel">Profile</span></div>
+        <div class="tile" data-target="communities.html"><div class="icon">👥</div><span class="tlabel">Communities</span></div>
+        <div class="tile" data-target="credits.html"><div class="icon">💎</div><span class="tlabel">Credits</span></div>
+        <div class="tile" data-target="stats.html"><div class="icon">📊</div><span class="tlabel">Stats</span></div>
+        <div class="tile" data-target="notifications.html"><div class="icon">🔔</div><span class="tlabel">Notifications</span></div>
+        <div class="tile" data-target="policing.html"><div class="icon">👮</div><span class="tlabel">Policing</span></div>
+        <div class="tile" data-target="settings.html"><div class="icon">⚙️</div><span class="tlabel">Settings</span></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", async () => {
+      const who = document.getElementById("whoami");
+
+      if (!window.sb) {
+        who.textContent = "Supabase not initialized.";
+        return;
+      }
+
+      // Sign out button
+      document.getElementById("sign-out").addEventListener("click", async () => {
+        await window.sb.auth.signOut();
+        window.location.href = "index.html";
+      });
+
+      // Try to read session immediately
+      let { data: { session } } = await window.sb.auth.getSession();
+
+      if (!session) {
+        // Wait briefly for storage restore
+        const { data: sub } = window.sb.auth.onAuthStateChange((event, s) => {
+          if (event === "SIGNED_IN" && s) {
+            who.textContent = `Signed in as: ${s.user?.email || "(no email)"}`;
+            sub.subscription.unsubscribe();
+            layoutNodes();
+          } else if (event === "SIGNED_OUT") {
+            sub.subscription.unsubscribe();
+            window.location.href = "index.html";
+          }
+        });
+        setTimeout(async () => {
+          const again = await window.sb.auth.getSession();
+          if (again.data.session) {
+            who.textContent = `Signed in as: ${again.data.session.user?.email || "(no email)"}`;
+            layoutNodes();
+          } else {
+            window.location.href = "index.html";
+          }
+        }, 300);
+      } else {
+        who.textContent = `Signed in as: ${session.user?.email || "(no email)"}`;
+        layoutNodes();
+      }
+
+      // Navigation
+      const go = (target) => window.location.href = target;
+      const centerBtn = document.getElementById("go-tasks");
+      if (centerBtn) centerBtn.addEventListener("click", () => go("tasks.html"));
+      document.querySelectorAll(".node, .tile").forEach(el => {
+        el.addEventListener("click", () => {
+          const t = el.getAttribute("data-target");
+          if (t) go(t);
+        });
+        el.tabIndex = 0;
+        el.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            const t = el.getAttribute("data-target");
+            if (t) go(t);
+          }
+        });
+      });
+
+      // Evenly place the 7 nodes around the ring (perfect spacing)
+      function layoutNodes() {
+        const wrap = document.querySelector(".orbit-wrap");
+        const spin = document.querySelector(".orbit-spin");
+        const nodes = Array.from(document.querySelectorAll(".orbit-spin .node"))
+          .filter(n => !n.classList.contains("node-center"));
+        if (!wrap || !spin || nodes.length === 0) return;
+
+        const rect = wrap.getBoundingClientRect();
+        const size = Math.min(rect.width, rect.height);
+        const cx = rect.width / 2;
+        const cy = rect.height / 2;
+
+        // Match CSS node size
+        const nodeSize = parseFloat(getComputedStyle(nodes[0]).width) || 98;
+        const R = (size / 2) - (nodeSize / 2) - 8;
+
+        // Equal angles starting at top (-90 degrees)
+        nodes.forEach((el, i) => {
+          const n = nodes.length; // 7
+          const angle = (-90 + (360 * i / n)) * Math.PI / 180;
+          const x = cx + R * Math.cos(angle) - nodeSize / 2;
+          const y = cy + R * Math.sin(angle) - nodeSize / 2;
+          el.style.left = `${x}px`;
+          el.style.top  = `${y}px`;
+        });
+      }
+
+      // Recompute on resize
+      window.addEventListener("resize", layoutNodes);
+    });
+  </script>
+</body>
+</html>

@@ -11,6 +11,8 @@
   <!-- Supabase (must come before supabaseClient.js) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="supabaseClient.js"></script>
+  <!-- Bell badge updater -->
+  <script defer src="notif_bell.js"></script>
 
   <!-- Orbit + welcome styles (page-specific) -->
   <style>
@@ -154,8 +156,45 @@
       border-radius: 999px;
       background: #121218;
       border: 1px solid var(--purple);
-      color: var(--muted);
+      color: #fff;   /* force white per your style */
       font-size: 12px;
+    }
+
+    /* SPECIAL CREDITS panel (styles can remain; no section on this page) */
+    .credits-panel {
+      background: var(--panel);
+      border: 2px solid var(--purple);
+      border-radius: 20px;
+      padding: 14px 16px;
+      max-width: 560px;
+      margin: 8px auto 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.4);
+    }
+    .credits-panel .panel-title {
+      margin: 0 0 8px;
+      font-weight: 700;
+      color: var(--text);
+      text-align: center;
+      letter-spacing: .3px;
+    }
+    .credits-table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border-radius: 12px;
+    }
+    .credits-table th {
+      background: var(--purple);
+      color: #fff;
+      text-align: left;
+      padding: 8px 10px;
+      font-weight: 800;
+      letter-spacing: .3px;
+    }
+    .credits-table td {
+      padding: 10px;
+      border-top: 1px solid var(--gray-600);
+      color: var(--text);
     }
 
     /* Hide fallback grid on desktop/tablet */
@@ -181,7 +220,7 @@
         cursor: pointer;
       }
       .tile .icon { font-size: 24px; }
-      .tile .tlabel { display: block; margin-top: 8px; color: var(--muted); }
+      .tile .tlabel { display: block; margin-top: 8px; color: #999; }
     }
   </style>
 </head>
@@ -189,7 +228,7 @@
   <header class="topbar">
     <h1 class="topbar__title">LCM DASHBOARD</h1>
     <div class="topbar__actions">
-      <!-- NEW: Notifications link with unread badge -->
+      <!-- Notifications link with unread badge -->
       <a href="notifications.html" class="btn btn-secondary" id="nav-notifications" style="position:relative">
         🔔 Notifications
         <span id="notif-badge" class="badge" hidden>0</span>
@@ -358,46 +397,5 @@
       window.addEventListener("resize", layoutNodes);
     });
   </script>
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  // Find your Supabase client
-  const db =
-    window.sb || window.supabaseClient || window.client || window.db || window.supabase;
-
-  const badge = document.getElementById('notif-badge');
-  const nav   = document.getElementById('nav-notifications')
-            || document.querySelector('a[href="notifications.html"]');
-
-  if (!db || !badge) return;
-  if (nav && !nav.style.position) nav.style.position = 'relative';
-
-  async function refreshUnread() {
-    try {
-      const { data: { session } = {} } = await db.auth.getSession();
-      if (!session) { badge.setAttribute('hidden', ''); return; }
-
-      // Change p_kind: 'POLICING' to show only policing, or null for all kinds
-      const { data, error } = await db.rpc('get_unread_notifications_count', { p_kind: null });
-      if (error) { console.warn('unread count error:', error); return; }
-
-      const n = Number(data) || 0;
-      if (n > 0) {
-        badge.textContent = n > 99 ? '99+' : String(n);
-        badge.removeAttribute('hidden');
-      } else {
-        badge.setAttribute('hidden', '');
-      }
-    } catch (e) {
-      console.warn('refreshUnread failed:', e);
-    }
-  }
-
-  refreshUnread();
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') refreshUnread();
-  });
-  setInterval(refreshUnread, 30000);
-});
-</script>
 </body>
 </html>

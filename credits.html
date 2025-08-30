@@ -35,10 +35,33 @@
     .section-title { margin: 0 0 8px; color: var(--text); }
     .hint { color: var(--muted); font-size: 12px; }
 
-    table { width: 100%; border-collapse: collapse; }
-    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--gray-700); }
-    th { color: var(--muted); font-weight: 600; }
-    tfoot td { font-weight: 800; color: var(--text); }
+    /* ---- LCM table style (matches Tasks table) ---- */
+    .table-lcm{
+      width:100%;
+      border-collapse:separate;
+      border-spacing:0;
+      border:1px solid var(--gray-700);
+      border-radius:16px;
+      overflow:hidden;
+      background:var(--panel);
+      box-shadow:0 8px 24px rgba(0,0,0,.35);
+    }
+    .table-lcm thead th{
+      background:var(--purple);
+      color:#fff;
+      padding:10px 12px;
+      font-weight:800;
+      letter-spacing:.3px;
+      text-transform:uppercase;
+    }
+    .table-lcm tbody td,
+    .table-lcm tfoot td{
+      padding:12px 10px;
+      border-top:1px solid var(--gray-700);
+      color:var(--text);
+    }
+    .table-lcm tbody tr:hover{ background:#0f0f14; }
+    .right{ text-align:right; }
 
     .btn-primary { background: var(--purple); color:#fff; border:none; padding:8px 12px; border-radius:10px; cursor:pointer; }
     .btn-secondary { background: transparent; color: var(--text); border:1px solid var(--gray-700); padding:8px 12px; border-radius:10px; cursor:pointer; }
@@ -92,13 +115,13 @@
                 <div class="balance-label">Wallet balance</div>
               </div>
               <div class="spacer"></div>
-              <!-- (Send coming soon) -->
               <button class="btn-secondary" disabled title="Coming soon">Send</button>
             </div>
 
             <div class="row" style="gap:8px; margin-top:10px;">
               <span class="pill">Bonus: <strong id="bonus-balance">0</strong></span>
               <span class="pill">Policing: <strong id="policing-balance">0</strong></span>
+              <span class="pill">Bonus (Today): <strong id="bonus-today-pill">0.0</strong></span>
             </div>
 
             <div style="margin-top:12px; border-top:1px solid var(--gray-700); padding-top:12px;">
@@ -124,6 +147,9 @@
                 </div>
               </div>
               <div id="redeem-status" class="hint" style="margin-top:6px;"></div>
+              <!-- <<< PREVIEW PATCH: live quote area -->
+              <div id="redeem-preview" class="hint" style="margin-top:4px;"></div>
+              <!-- >>> PREVIEW PATCH -->
             </div>
           </section>
 
@@ -136,9 +162,9 @@
               <button id="daily-go" class="btn-secondary">Go</button>
               <button id="daily-clear" class="btn-ghost">Last 7</button>
             </div>
-            <table>
+            <table class="table-lcm">
               <thead>
-                <tr><th>DATE</th><th>CREDITS</th></tr>
+                <tr><th>DATE</th><th class="right">CREDITS</th></tr>
               </thead>
               <tbody id="daily-body">
                 <tr><td colspan="2" class="hint">Loading…</td></tr>
@@ -149,15 +175,15 @@
           <!-- Monthly Credits -->
           <section class="card" style="margin-top:12px;">
             <h3 class="section-title">Monthly Credits</h3>
-            <table>
+            <table class="table-lcm">
               <thead>
-                <tr><th>MONTH</th><th>CREDITS</th></tr>
+                <tr><th>MONTH</th><th class="right">CREDITS</th></tr>
               </thead>
               <tbody id="monthly-body">
                 <tr><td colspan="2" class="hint">Loading…</td></tr>
               </tbody>
               <tfoot>
-                <tr><td>Totals</td><td id="monthly-total">0</td></tr>
+                <tr><td>Totals</td><td id="monthly-total" class="right">0</td></tr>
               </tfoot>
             </table>
           </section>
@@ -165,9 +191,9 @@
           <!-- Annual Super Credits -->
           <section class="card" style="margin-top:12px;">
             <h3 class="section-title">Annual Super Credits</h3>
-            <table>
+            <table class="table-lcm">
               <thead>
-                <tr><th>MONTH</th><th>CREDITS</th></tr>
+                <tr><th>MONTH</th><th class="right">CREDITS</th></tr>
               </thead>
               <tbody id="super-body">
                 <tr><td colspan="2" class="hint">Loading…</td></tr>
@@ -178,8 +204,8 @@
           <!-- Special Credits -->
           <section class="card" style="margin-top:12px;">
             <h3 class="section-title">Special Credits</h3>
-            <table>
-              <thead><tr><th>NAME</th><th>CREDITS</th></tr></thead>
+            <table class="table-lcm">
+              <thead><tr><th>NAME</th><th class="right">CREDITS</th></tr></thead>
               <tbody id="special-body">
                 <tr><td colspan="2" class="hint">Loading…</td></tr>
               </tbody>
@@ -187,7 +213,7 @@
           </section>
         </div>
 
-        <!-- RIGHT: Recent Activity -->
+        <!-- RIGHT: Recent Activity + Bonus Ledger -->
         <div class="right-col">
           <section class="card">
             <div class="row">
@@ -198,6 +224,23 @@
             <div id="activity" class="activity">
               <div class="hint">Loading…</div>
             </div>
+          </section>
+
+          <!-- NEW: Bonus Ledger -->
+          <section class="card">
+            <div class="row">
+              <h3 class="section-title">Bonus Ledger</h3>
+              <div class="spacer"></div>
+              <span class="badge" title="Your last 20 bonus entries">Last 20</span>
+            </div>
+            <table class="table-lcm">
+              <thead>
+                <tr><th>DATE</th><th>REASON</th><th class="right">AMOUNT</th></tr>
+              </thead>
+              <tbody id="bonus-ledger-body">
+                <tr><td colspan="3" class="hint">Loading…</td></tr>
+              </tbody>
+            </table>
           </section>
         </div>
       </div>
@@ -210,6 +253,7 @@
       const walletEl = document.getElementById('wallet-balance');
       const bonusEl = document.getElementById('bonus-balance');
       const policingEl = document.getElementById('policing-balance');
+      const bonusTodayPill = document.getElementById('bonus-today-pill');
 
       const dailyBody = document.getElementById('daily-body');
       const monthlyBody = document.getElementById('monthly-body');
@@ -218,12 +262,14 @@
       const specialBody = document.getElementById('special-body');
 
       const activityEl = document.getElementById('activity');
+      const bonusLedgerBody = document.getElementById('bonus-ledger-body');
 
       const redeemAmount = document.getElementById('redeem-amount');
       const redeemKind = document.getElementById('redeem-kind');
       const redeemMemo = document.getElementById('redeem-memo');
       const redeemBtn = document.getElementById('redeem-btn');
       const redeemStatus = document.getElementById('redeem-status');
+      const redeemPreview = document.getElementById('redeem-preview'); // <<< PREVIEW PATCH
 
       const dailyDate = document.getElementById('daily-date');
       const dailyGo = document.getElementById('daily-go');
@@ -249,8 +295,87 @@
         walletAccountId = ensured?.wallet || null;
       } catch (e) { console.warn('ensure_user_accounts threw:', e.message); }
 
-      // Loaders
+      // Helpers
       const fmtInt = (n) => (Number(n)||0).toLocaleString();
+      const prettyDate = (d) => {
+        const dt = new Date(d);
+        return isNaN(+dt) ? '' : dt.toLocaleString(undefined, {
+          year:'numeric', month:'short', day:'2-digit',
+          hour:'2-digit', minute:'2-digit'
+        });
+      };
+      const reasonLabel = (r) => r === 'verifier_count' ? 'Verifier Count'
+                          : r === 'extra_effort'     ? 'Extra Effort'
+                          : r?.replace('_',' ') || '—';
+
+      // NEW: label helper so redemptions read nicely
+      function titleCase(s) {
+        return String(s||'').replace(/\b\w/g, c => c.toUpperCase());
+      }
+      function labelTx(tx) {
+        const t = String(tx?.type || '').toLowerCase();
+        const memo = String(tx?.memo || '').toLowerCase();
+
+        const isRedemption =
+          t.includes('redemption') ||
+          t.includes('redeem') ||
+          t.includes('bonus_to_normal') ||
+          t.includes('policing_to_normal') ||
+          /redeem/.test(memo);
+
+        if (isRedemption) {
+          const which = (t.includes('policing') || memo.includes('policing')) ? 'Policing' : 'Bonus';
+          return `Redemption (${which})`;
+        }
+        return titleCase((tx?.type || 'entry').replace(/_/g, ' '));
+      }
+
+      async function loadBonusToday() {
+        try {
+          const { data, error } = await window.sb
+            .from('v_bonus_today')
+            .select('total_bonus')
+            .eq('user_id', session.user.id)
+            .maybeSingle();
+          if (error) { console.warn('bonus today error:', error.message); return 0; }
+          const val = Number(data?.total_bonus ?? 0);
+          bonusTodayPill.textContent = val.toFixed(1);
+          return val;
+        } catch (e) {
+          console.warn('loadBonusToday failed:', e.message);
+          return 0;
+        }
+      }
+
+      async function loadBonusMonth() {
+        try {
+          const { data, error } = await window.sb
+            .from('v_bonus_month_to_date')
+            .select('total_bonus_mtd')
+            .eq('user_id', session.user.id)
+            .maybeSingle();
+          if (error) { console.warn('bonus MTD error:', error.message); return 0; }
+          return Number(data?.total_bonus_mtd ?? 0);
+        } catch (e) {
+          console.warn('loadBonusMonth failed:', e.message);
+          return 0;
+        }
+      }
+
+      async function loadBonusLifetime() {
+        try {
+          const { data, error } = await window.sb
+            .from('v_bonus_lifetime')
+            .select('total_bonus_lifetime')
+            .eq('user_id', session.user.id)
+            .maybeSingle();
+          if (error) { console.warn('bonus lifetime error:', error.message); return 0; }
+          return Number(data?.total_bonus_lifetime ?? 0);
+        } catch (e) {
+          console.warn('loadBonusLifetime failed:', e.message);
+          return 0;
+        }
+      }
 
       async function loadBalances() {
         // Wallet balance
@@ -293,7 +418,7 @@
           const d = new Date(r.day);
           const pretty = d.toLocaleDateString(undefined, { year:'numeric', month:'short', day:'2-digit' });
           const tr = document.createElement('tr');
-          tr.innerHTML = `<td>${pretty}</td><td>${fmtInt(r.credits)}</td>`;
+          tr.innerHTML = `<td>${pretty}</td><td class="right">${fmtInt(r.credits)}</td>`;
           dailyBody.appendChild(tr);
         }
       }
@@ -314,11 +439,10 @@
         let total = 0;
         for (const r of rows) {
           total += Number(r.credits)||0;
-          // r.month is 'YYYY-MM' -> pretty label
           const [y, m] = String(r.month).split('-');
           const pretty = new Date(Number(y), Number(m)-1, 1).toLocaleDateString(undefined, { year:'numeric', month:'long' });
           const tr = document.createElement('tr');
-          tr.innerHTML = `<td>${pretty}</td><td>${fmtInt(r.credits)}</td>`;
+          tr.innerHTML = `<td>${pretty}</td><td class="right">${fmtInt(r.credits)}</td>`;
           monthlyBody.appendChild(tr);
         }
         monthlyTotal.textContent = fmtInt(total);
@@ -340,33 +464,50 @@
           const [y, m] = String(r.month).split('-');
           const pretty = new Date(Number(y), Number(m)-1, 1).toLocaleDateString(undefined, { year:'numeric', month:'long' });
           const tr = document.createElement('tr');
-          tr.innerHTML = `<td>${pretty}</td><td>${fmtInt(r.credits)}</td>`;
+          tr.innerHTML = `<td>${pretty}</td><td class="right">${fmtInt(r.credits)}</td>`;
           superBody.appendChild(tr);
         }
       }
 
       async function loadSpecialTable() {
+        // Base special balances
         const { data, error } = await window.sb
           .from('user_special_balances')
           .select('kind,balance');
         const rows = error ? [] : (data || []);
         const byKind = new Map(rows.map(r => [r.kind, r.balance||0]));
+
+        // Build table skeleton including 3 dynamic bonus rows
         specialBody.innerHTML = `
-          <tr><td>Bonus Credits</td><td>${fmtInt(byKind.get('bonus_hold') || 0)}</td></tr>
-          <tr><td>Policing Credits</td><td>${fmtInt(byKind.get('policing_hold') || 0)}</td></tr>
+          <tr><td>Bonus Credits</td><td class="right">${fmtInt(byKind.get('bonus_hold') || 0)}</td></tr>
+          <tr><td>Policing Credits</td><td class="right">${fmtInt(byKind.get('policing_hold') || 0)}</td></tr>
+          <tr><td>Bonus (Today)</td><td class="right"><span id="bonusTodayValue">0.0</span></td></tr>
+          <tr><td>Bonus (This Month)</td><td class="right"><span id="bonusMonthValue">0.0</span></td></tr>
+          <tr><td>Bonus (Lifetime)</td><td class="right"><span id="bonusLifetimeValue">0.0</span></td></tr>
         `;
+
+        // Fill the three bonus rollups
+        const [today, mtd, life] = await Promise.all([
+          loadBonusToday(),
+          loadBonusMonth(),
+          loadBonusLifetime()
+        ]);
+        const tEl = document.getElementById('bonusTodayValue');
+        const mEl = document.getElementById('bonusMonthValue');
+        const lEl = document.getElementById('bonusLifetimeValue');
+        if (tEl) tEl.textContent = today.toFixed(1);
+        if (mEl) mEl.textContent = mtd.toFixed(1);
+        if (lEl) lEl.textContent = life.toFixed(1);
       }
 
       async function loadActivity() {
         activityEl.innerHTML = '<div class="hint">Loading…</div>';
         if (!walletAccountId) {
-          // Try to infer wallet id by querying accounts
           const guess = await window.sb.from('accounts').select('id').eq('kind','wallet').limit(1);
           walletAccountId = guess.data?.[0]?.id || null;
         }
         if (!walletAccountId) { activityEl.innerHTML = '<div class="hint">No wallet yet.</div>'; return; }
 
-        // Fetch last 10 entries for the wallet
         const { data: entries, error } = await window.sb
           .from('entries')
           .select('id, amount, tx_id')
@@ -377,7 +518,6 @@
         if (error) { activityEl.innerHTML = `<div class="hint">${error.message}</div>`; return; }
         if (!entries || !entries.length) { activityEl.innerHTML = '<div class="hint">No recent activity.</div>'; return; }
 
-        // Fetch transactions for these tx_ids (dedupe)
         const txIds = [...new Set(entries.map(e => e.tx_id))];
         const { data: txs } = await window.sb
           .from('transactions')
@@ -393,7 +533,7 @@
           const whenStr = when ? when.toLocaleString() : '';
           const amt = Number(e.amount)||0;
           const signCls = amt >= 0 ? 'pos' : 'neg';
-          const kindLabel = tx?.type ? tx.type.replace('_',' ') : 'entry';
+          const label = labelTx(tx);
           const superTag = tx?.is_super ? ' • Super' : '';
           const memo = tx?.memo ? ` — <span class="memo">${tx.memo}</span>` : '';
           const div = document.createElement('div');
@@ -401,7 +541,7 @@
           div.innerHTML = `
             <div class="amt ${signCls}">${amt >= 0 ? '+' : ''}${fmtInt(amt)}</div>
             <div class="spacer"></div>
-            <div class="memo">${kindLabel}${superTag}${memo}</div>
+            <div class="memo">${label}${superTag}${memo}</div>
             <div class="spacer"></div>
             <div class="hint">${whenStr}</div>
           `;
@@ -409,11 +549,91 @@
         }
       }
 
-      // Redeem handler
+      async function loadBonusLedger() {
+        bonusLedgerBody.innerHTML = '<tr><td colspan="3" class="hint">Loading…</td></tr>';
+        const { data, error } = await window.sb
+          .from('v_bonus_ledger')
+          .select('bonus_date, reason, amount, created_at')
+          .eq('user_id', session.user.id)
+          .order('created_at', { ascending: false })
+          .limit(20);
+
+        if (error) {
+          bonusLedgerBody.innerHTML = `<tr><td colspan="3" class="hint">${error.message}</td></tr>`;
+          return;
+        }
+        const rows = data || [];
+        if (!rows.length) {
+          bonusLedgerBody.innerHTML = '<tr><td colspan="3" class="hint">No bonus entries yet.</td></tr>';
+          return;
+        }
+        bonusLedgerBody.innerHTML = '';
+        for (const r of rows) {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${prettyDate(r.created_at) || r.bonus_date || ''}</td>
+            <td>${reasonLabel(r.reason)}</td>
+            <td class="right">${Number(r.amount).toFixed(1)}</td>
+          `;
+          bonusLedgerBody.appendChild(tr);
+        }
+      }
+
+      // ====== PREVIEW PATCH: live quote logic ======
+      async function updateRedeemPreview() {
+        try {
+          const amt = parseInt(redeemAmount.value, 10);
+          const kind = redeemKind.value;
+
+          // Default UI state when empty/invalid amount
+          if (!amt || amt <= 0) {
+            redeemPreview.textContent = 'Enter a positive amount to preview.';
+            redeemBtn.disabled = true;
+            return;
+          }
+
+          const { data, error } = await window.sb.rpc('quote_redemption', {
+            p_user: session.user.id,
+            p_kind: kind,
+            p_amount: amt
+          });
+          if (error) {
+            redeemPreview.textContent = error.message;
+            redeemBtn.disabled = true;
+            return;
+          }
+
+          const row = Array.isArray(data) ? data[0] : null;
+          const ok = !!row?.ok;
+          const award = Number(row?.normal_awarded ?? 0);
+          const after = row?.balance_after != null ? Number(row.balance_after) : null;
+
+          if (ok) {
+            const prettyKind = kind === 'bonus_hold' ? 'bonus' : 'policing';
+            redeemPreview.textContent =
+              `Preview: Redeem ${amt} ${prettyKind} → +${award} normal` +
+              (after != null ? ` (remaining ${prettyKind}: ${after})` : '');
+            redeemBtn.disabled = false;
+          } else {
+            redeemPreview.textContent = row?.message || 'Not allowed.';
+            redeemBtn.disabled = true;
+          }
+        } catch (e) {
+          redeemPreview.textContent = e.message || 'Preview failed.';
+          redeemBtn.disabled = true;
+        }
+      }
+
+      // Wire preview updates
+      redeemAmount.addEventListener('input', updateRedeemPreview);
+      redeemKind.addEventListener('change', updateRedeemPreview);
+      // ====== /PREVIEW PATCH ======
+
+      // ====== REDEEM HANDLER (with success toast) ======
       redeemBtn.addEventListener('click', async () => {
         const amount = parseInt(redeemAmount.value, 10);
-        const kind = redeemKind.value;
-        const memo = redeemMemo.value.trim() || null;
+        const kind = redeemKind.value;                  // 'bonus_hold' | 'policing_hold'
+        const memo = redeemMemo.value.trim() || null;   // currently unused by RPCs
 
         if (!amount || amount <= 0) {
           redeemStatus.textContent = 'Enter a positive amount.';
@@ -422,24 +642,43 @@
         redeemStatus.textContent = 'Redeeming…';
         redeemBtn.disabled = true;
 
-        const { error } = await window.sb.rpc('redeem_special', { p_kind: kind, p_amount: amount, p_memo: memo });
-        if (error) {
-          redeemStatus.textContent = error.message;
+        try {
+          const rpc = kind === 'bonus_hold' ? 'redeem_bonus_credits' : 'redeem_policing_credits';
+          const { data, error } = await window.sb.rpc(rpc, {
+            p_user: session.user.id,
+            p_amount: amount
+          });
+          if (error) throw error;
+
+          const row = Array.isArray(data) ? data[0] : null;
+          const normal = Number(row?.normal_awarded ?? 0);
+          const pretty = kind === 'bonus_hold' ? 'bonus' : 'policing';
+
+          redeemStatus.textContent = `Redeemed ✅ ${amount} ${pretty} → +${normal} normal`;
+          if (typeof window.showToast === 'function') {
+            window.showToast(`Redeemed ${amount} ${pretty} → +${normal} normal`);
+          }
+
+          redeemAmount.value = '';
+          redeemMemo.value = '';
+
+          // Refresh visible numbers
+          await loadBalances();
+          await loadDaily();
+          await loadMonthly();
+          await loadActivity();
+          await loadBonusLedger();
+
+          // Refresh preview (now empty/disabled)
+          await updateRedeemPreview();
+
+          setTimeout(() => { redeemStatus.textContent = ''; redeemBtn.disabled = false; }, 800);
+        } catch (e) {
+          redeemStatus.textContent = e.message || 'Redemption failed.';
           redeemBtn.disabled = false;
-          return;
         }
-
-        redeemStatus.textContent = 'Redeemed ✅';
-        redeemAmount.value = '';
-        redeemMemo.value = '';
-
-        await loadBalances();
-        await loadDaily();      // reflect today’s inflow
-        await loadMonthly();    // totals update
-        await loadActivity();   // recent transaction appears
-
-        setTimeout(() => { redeemStatus.textContent = ''; redeemBtn.disabled = false; }, 800);
       });
+      // ====== /REDEEM HANDLER ======
 
       // Daily date filter
       dailyGo.addEventListener('click', async () => {
@@ -459,7 +698,293 @@
       await loadSuper();
       await loadSpecialTable();
       await loadActivity();
+      await loadBonusLedger();
+
+      // Initialize preview once user/session is ready
+      await updateRedeemPreview(); // <<< PREVIEW PATCH
+
+      // Refresh bonus rollups and ledger when page regains focus
+      document.addEventListener('visibilitychange', async () => {
+        if (document.visibilityState === 'visible') {
+          const [t, m, l] = await Promise.all([loadBonusToday(), loadBonusMonth(), loadBonusLifetime()]);
+          const tEl = document.getElementById('bonusTodayValue');
+          const mEl = document.getElementById('bonusMonthValue');
+          const lEl = document.getElementById('bonusLifetimeValue');
+          if (tEl) tEl.textContent = t.toFixed(1);
+          if (mEl) mEl.textContent = m.toFixed(1);
+          if (lEl) lEl.textContent = l.toFixed(1);
+          await loadBonusLedger();
+        }
+      });
+
+      // >>> Expose loaders globally for the realtime subscriber <<<
+      window.loadBonusToday = loadBonusToday;
+      window.loadBonusMonth = loadBonusMonth;
+      window.loadBonusLifetime = loadBonusLifetime;
+      window.loadBonusLedger = loadBonusLedger;
     });
+  </script>
+
+  <script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const db = window.sb || window.supabaseClient || window.supabase;
+    if (!db) return;
+
+    let channel;
+
+    async function subscribeBonusStream() {
+      try {
+        const { data: { session } = {} } = await db.auth.getSession();
+        if (!session) return;
+        const uid = session.user.id;
+
+        // Subscribe to *any* change on my lcm_bonus_credits rows
+        channel = db.channel('bonus_stream_' + uid);
+
+        channel.on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'lcm_bonus_credits', filter: `user_id=eq.${uid}` },
+          (payload) => {
+            // Soft-refresh the visible numbers
+            if (typeof loadBonusToday === 'function') {
+              loadBonusToday().then(val => {
+                const t1 = document.getElementById('bonusTodayValue');
+                const t2 = document.getElementById('bonus-today-pill');
+                if (t1) t1.textContent = Number(val).toFixed(1);
+                if (t2) t2.textContent = Number(val).toFixed(1);
+              });
+            }
+            if (typeof loadBonusMonth === 'function') {
+              loadBonusMonth().then(val => {
+                const m = document.getElementById('bonusMonthValue');
+                if (m) m.textContent = Number(val).toFixed(1);
+              });
+            }
+            if (typeof loadBonusLifetime === 'function') {
+              loadBonusLifetime().then(val => {
+                const l = document.getElementById('bonusLifetimeValue');
+                if (l) l.textContent = Number(val).toFixed(1);
+              });
+            }
+            if (typeof loadBonusLedger === 'function') loadBonusLedger();
+
+            // Friendly toast
+            const amt = Number(payload?.new?.amount ?? 0);
+            const reason = (payload?.new?.reason ?? 'bonus').replace('_',' ');
+            window.showToast?.(`${amt >= 0 ? '+' : ''}${amt.toFixed(1)} bonus • ${reason}`);
+          }
+        );
+
+        await channel.subscribe((status) => {
+          if (status === 'SUBSCRIBED') console.log('Realtime bonus stream: subscribed');
+        });
+      } catch (e) {
+        console.warn('subscribeBonusStream failed:', e);
+      }
+    }
+
+    // Make toast available globally so other scripts (e.g., redeem handler) can use it
+    window.showToast = function(message) {
+      let el = document.getElementById('toast');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'toast';
+        Object.assign(el.style, {
+          position: 'fixed',
+          right: '16px',
+          bottom: '16px',
+          padding: '12px 14px',
+          border: '1px solid var(--purple)',
+          background: '#121218',
+          color: 'var(--text)',
+          borderRadius: '12px',
+          boxShadow: '0 8px 24px rgba(0,0,0,.35)',
+          zIndex: 9999,
+          transition: 'opacity .25s',
+          opacity: '0'
+        });
+        document.body.appendChild(el);
+      }
+      el.textContent = message;
+      el.style.opacity = '1';
+      clearTimeout(el._hideTimer);
+      el._hideTimer = setTimeout(() => { el.style.opacity = '0'; }, 2500);
+    };
+
+    subscribeBonusStream();
+
+    // Re-subscribe on focus if needed
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        if (!channel || channel.state !== 'SUBSCRIBED') subscribeBonusStream();
+      }
+    });
+  });
+  </script>
+
+  <!-- Charts + CSV (Credits) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+  document.addEventListener('DOMContentLoaded', async () => {
+    const db = window.sb || window.supabaseClient || window.supabase;
+    if (!db) return;
+
+    // Find the right column and inject a new card for charts
+    const rightCol = document.querySelector('.right-col');
+    if (!rightCol) return;
+
+    const card = document.createElement('section');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="row">
+        <h3 class="section-title">Credits Charts</h3>
+        <div class="spacer"></div>
+        <button id="export-daily-csv" class="btn-ghost" title="Download last 14 days">Daily CSV</button>
+        <button id="export-monthly-csv" class="btn-ghost" title="Download last 12 months">Monthly CSV</button>
+      </div>
+      <div style="display:grid; gap:12px;">
+        <canvas id="chart-daily" height="160"></canvas>
+        <canvas id="chart-monthly" height="160"></canvas>
+      </div>
+    `;
+    rightCol.appendChild(card);
+
+    // Helpers (don’t collide with existing ones)
+    const fmt = (n) => Number(n || 0);
+    const csvEscape = (s) => {
+      const t = String(s ?? '');
+      return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+    };
+    const downloadCSV = (filename, headers, rows) => {
+      const lines = [];
+      lines.push(headers.map(csvEscape).join(','));
+      for (const r of rows) lines.push(r.map(csvEscape).join(','));
+      const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click();
+      URL.revokeObjectURL(url); a.remove();
+    };
+
+    // Fetch last 14 daily rows (most recent first), then reverse for chronological
+    async function fetchDaily14() {
+      const { data, error } = await db
+        .from('user_daily_credits')
+        .select('day, credits')
+        .order('day', { ascending: false })
+        .limit(14);
+      if (error) { console.warn('daily fetch error:', error.message); return []; }
+      const rows = (data || []).slice().reverse();
+      return rows.map(r => ({
+        label: new Date(r.day).toLocaleDateString(undefined, { month:'short', day:'2-digit' }),
+        dateISO: r.day,
+        value: Number(r.credits || 0)
+      }));
+    }
+
+    // Fetch last 12 monthly rows
+    async function fetchMonthly12() {
+      const { data, error } = await db
+        .from('user_monthly_credits')
+        .select('month, credits')
+        .order('month', { ascending: false })
+        .limit(12);
+      if (error) { console.warn('monthly fetch error:', error.message); return []; }
+      const rows = (data || []).slice().reverse();
+      return rows.map(r => {
+        // r.month is 'YYYY-MM'
+        const [y, m] = String(r.month).split('-');
+        const label = new Date(Number(y), Number(m)-1, 1).toLocaleDateString(undefined, { year:'2-digit', month:'short' });
+        return { label, ym: r.month, value: Number(r.credits || 0) };
+      });
+    }
+
+    // Build charts
+    let dailyChart, monthlyChart;
+
+    function makeDailyChart(points) {
+      const ctx = document.getElementById('chart-daily').getContext('2d');
+      if (dailyChart) dailyChart.destroy();
+      dailyChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: points.map(p => p.label),
+          datasets: [{
+            label: 'Daily Credits',
+            data: points.map(p => p.value),
+            tension: 0.25,
+            fill: true
+          }]
+        },
+        options: {
+          plugins: {
+            legend: { labels: { color: 'rgba(255,255,255,0.85)' } },
+            tooltip: { callbacks: {
+              label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y}`
+            } }
+          },
+          scales: {
+            x: { ticks: { color: 'rgba(255,255,255,0.7)' }, grid: { color: 'rgba(255,255,255,0.08)' } },
+            y: { ticks: { color: 'rgba(255,255,255,0.7)' }, grid: { color: 'rgba(255,255,255,0.08)' } }
+          }
+        }
+      });
+    }
+
+    function makeMonthlyChart(points) {
+      const ctx = document.getElementById('chart-monthly').getContext('2d');
+      if (monthlyChart) monthlyChart.destroy();
+      monthlyChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: points.map(p => p.label),
+          datasets: [{
+            label: 'Monthly Credits',
+            data: points.map(p => p.value)
+          }]
+        },
+        options: {
+          plugins: {
+            legend: { labels: { color: 'rgba(255,255,255,0.85)' } },
+            tooltip: { callbacks: {
+              label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y}`
+            } }
+          },
+          scales: {
+            x: { ticks: { color: 'rgba(255,255,255,0.7)' }, grid: { color: 'rgba(255,255,255,0.08)' } },
+            y: { ticks: { color: 'rgba(255,255,255,0.7)' }, grid: { color: 'rgba(255,255,255,0.08)' } }
+          }
+        }
+      });
+    }
+
+    async function refreshCharts() {
+      const [daily, monthly] = await Promise.all([fetchDaily14(), fetchMonthly12()]);
+      makeDailyChart(daily);
+      makeMonthlyChart(monthly);
+
+      // Wire CSV buttons to current datasets
+      const dayBtn = document.getElementById('export-daily-csv');
+      const monBtn = document.getElementById('export-monthly-csv');
+
+      if (dayBtn) dayBtn.onclick = () => {
+        const rows = daily.map(p => [p.dateISO, p.value]);
+        downloadCSV('daily_credits_last14.csv', ['date','credits'], rows);
+      };
+      if (monBtn) monBtn.onclick = () => {
+        const rows = monthly.map(p => [p.ym, p.value]);
+        downloadCSV('monthly_credits_last12.csv', ['month','credits'], rows);
+      };
+    }
+
+    await refreshCharts();
+
+    // Keep charts fresh when you return to the tab
+    document.addEventListener('visibilitychange', async () => {
+      if (document.visibilityState === 'visible') await refreshCharts();
+    });
+  });
   </script>
 </body>
 </html>

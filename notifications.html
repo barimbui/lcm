@@ -13,7 +13,7 @@
 
   <style>
     .wrap { max-width: 900px; margin: 16px auto; padding: 0 12px; }
-    .toolbar { display:flex; align-items:center; gap:10px; margin: 10px 0 14px; }
+    .toolbar { display:flex; align-items:center; gap:10px; margin: 10px 0 14px; flex-wrap: wrap; }
     .spacer { flex: 1 1 auto; }
     .btn { cursor: pointer; }
     .btn-ghost {
@@ -46,6 +46,38 @@
       border-radius: 14px; padding: 16px; text-align:center;
     }
     label.filter { display:flex; align-items:center; gap:6px; color: var(--muted); }
+    .chip {
+      display:inline-block; padding: 6px 10px;
+      border: 1px solid var(--gray-700); border-radius: 999px;
+      background:#0f0f14; color: var(--muted);
+    }
+    :root { color-scheme: dark; }
+    #kind-filter {
+      background: #0f0f14;
+      color: var(--text);
+      border: 1px solid var(--gray-700);
+      border-radius: 10px;
+      padding: 6px 10px;
+    }
+    #kind-filter option {
+      background: #0f0f14;
+      color: #fff;
+    }
+    @supports (-webkit-touch-callout: none) {
+      #kind-filter option { background-color: #0f0f14; color: #fff; }
+    }
+
+    /* Make the whole card clickable when wrapped in <a> */
+    .card-link {
+      display:block;
+      text-decoration: none;
+      color: inherit;
+    }
+    .card-link:focus .card,
+    .card-link:hover .card {
+      border-color: var(--purple);
+      box-shadow: 0 10px 26px rgba(0,0,0,.45);
+    }
   </style>
 </head>
 
@@ -63,12 +95,28 @@
       <div class="toolbar">
         <p id="whoami" class="welcome-chip" style="margin:0;">Checking your session…</p>
         <div class="spacer"></div>
+
+        <!-- Kind filter + unread counter -->
+        <select id="kind-filter" class="btn-ghost" title="Filter by kind">
+          <option value="">All kinds</option>
+          <option value="BONUS">BONUS</option>
+          <option value="POLICING">POLICING</option>
+          <option value="SYSTEM">SYSTEM</option>
+        </select>
+        <span id="unread-chip" class="chip">Unread: —</span>
+
         <label class="filter"><input id="only-unread" type="checkbox" /> Show unread only</label>
         <button id="mark-all" class="btn-ghost">Mark all read</button>
       </div>
 
       <div id="status" class="hint" style="margin-bottom:10px;color:var(--muted);"></div>
       <div id="list" class="list"></div>
+
+      <!-- Pager -->
+      <div style="margin-top:10px;">
+        <button id="load-more" class="btn-ghost" style="display:none;">Load more</button>
+      </div>
+
       <div id="empty" class="empty" style="display:none;">No notifications.</div>
     </div>
   </main>
@@ -82,6 +130,14 @@
       const unreadOnly = document.getElementById('only-unread');
       const markAllBtn = document.getElementById('mark-all');
 
+      const kindFilter = document.getElementById('kind-filter');
+      const unreadChip = document.getElementById('unread-chip');
+      const loadMoreBtn = document.getElementById('load-more');
+
+      let currentKind = '';
+      const PAGE_SIZE = 30;
+      let currentLimit = PAGE_SIZE;
+
       function getSupabaseClient() {
         const cands = [window.sb, window.supabaseClient, window.client, window.db, window.supabase].filter(Boolean);
         for (const c of cands) if (c?.auth && typeof c.from === 'function') return c;
@@ -91,97 +147,130 @@
 
       document.getElementById('sign-out')?.addEventListener('click', async () => {
         if (db?.auth?.signOut) await db.auth.signOut();
-        window.location.href = 'index.html';
+        window.top.location.href = 'index.html';
       });
 
       if (!db) { whoEl.textContent = 'Supabase not initialized.'; return; }
 
       const { data: { session } = {} } = await db.auth.getSession();
-      if (!session) { window.location.href = 'index.html'; return; }
+      if (!session) { window.top.location.href = 'index.html'; return; }
       whoEl.textContent = `Signed in as: ${session.user?.email || '(no email)'}`;
 
-      unreadOnly.addEventListener('change', loadNotifications);
+      unreadOnly.addEventListener('change', async () => {
+        currentLimit = PAGE_SIZE;
+        await loadNotifications();
+      });
       markAllBtn.addEventListener('click', markAllRead);
+
+      kindFilter.addEventListener('change', async () => {
+        currentKind = kindFilter.value || '';
+        currentLimit = PAGE_SIZE;
+        await loadNotifications();
+        await refreshUnread();
+      });
+
+      loadMoreBtn.addEventListener('click', async () => {
+        currentLimit += PAGE_SIZE;
+        await loadNotifications();
+      });
 
       function fmtDate(iso) {
         try { return new Date(iso).toLocaleString(); } catch { return iso || ''; }
       }
 
       async function markOneRead(id) {
-        // Use RPC so it matches RLS
         try { await db.rpc('mark_notification_read', { p_notification_id: id }); }
         catch (e) { console.warn('mark_notification_read failed:', e); }
+      }
+
+      async function markOneUnread(id) {
+        try { await db.rpc('mark_notification_unread', { p_notification_id: id }); }
+        catch (e) { console.warn('mark_notification_unread failed:', e); }
       }
 
       async function markAllRead() {
         status.textContent = 'Marking all as read…';
         const { data: items, error } = await db.rpc('get_my_notifications', { p_limit: 200 });
         if (error) { status.textContent = error.message; return; }
-        const unread = (items || []).filter(n => !n.read_at);
+        let rows = items || [];
+        if (currentKind) rows = rows.filter(n => (n.kind || '') === currentKind);
+        const unread = rows.filter(n => !n.read_at);
         await Promise.all(unread.map(n => markOneRead(n.id)));
         status.textContent = '';
         await loadNotifications();
+        await refreshUnread();
       }
 
-      function renderActions(n, link) {
-        const wrap = document.createElement('div');
-        const isUnread = !n.read_at;
-
-        wrap.className = 'actions';
-        if (isUnread) {
-          const markBtn = document.createElement('button');
-          markBtn.className = 'btn-ghost';
-          markBtn.textContent = 'Mark as read';
-          markBtn.onclick = async (e) => {
-            e.stopPropagation();
-            markBtn.disabled = true; markBtn.textContent = 'Reading…';
-            await markOneRead(n.id);
-            await loadNotifications();
-          };
-          wrap.appendChild(markBtn);
-        }
-        if (link) {
-          const openBtn = document.createElement('a');
-          openBtn.className = 'btn-primary';
-          openBtn.href = '#';
-          openBtn.textContent = 'Open';
-          openBtn.onclick = async (e) => {
-            e.preventDefault(); e.stopPropagation();
-            await markOneRead(n.id);
-            window.location.href = link;   // deep-link to policing.html?incident=…
-          };
-          wrap.appendChild(openBtn);
-        }
-        return wrap;
+      // ===== Build correct POLICING deep links =====
+      function getIncidentFromLink(href) {
+        if (!href) return null;
+        try {
+          const u = new URL(href, location.origin);
+          const q = u.searchParams.get('incident');
+          if (!q) return null;
+          return /^\d+$/.test(String(q)) ? Number(q) : q;
+        } catch { return null; }
       }
+      function extractIncidentId(n) {
+        return (
+          n.incident_id ??
+          n.data?.incident_id ??
+          n.data?.incident?.id ??
+          n.payload?.incident_id ??
+          n.meta?.incident_id ??
+          getIncidentFromLink(n.link) ??
+          null
+        );
+      }
+      function buildPolicingLink(n) {
+        const inc = extractIncidentId(n);
+        const nid = encodeURIComponent(n.id);
+        const base = './policing.html';
+        if (inc !== null && inc !== undefined && String(inc).length > 0) {
+          return `${base}?incident=${encodeURIComponent(inc)}&src=notif&notif=${nid}`;
+        }
+        return `${base}?src=notif&notif=${nid}`;
+      }
+      // ========================================================
 
       async function loadNotifications() {
         status.textContent = 'Loading…';
         listEl.innerHTML = '';
         emptyEl.style.display = 'none';
 
-        const { data: items, error } = await db.rpc('get_my_notifications', { p_limit: 100 });
+        const { data: items, error } = await db.rpc('get_my_notifications', { p_limit: currentLimit });
         if (error) { console.error('get_my_notifications error:', error); status.textContent = error.message; return; }
         status.textContent = '';
 
         let rows = items || [];
+        if (currentKind) rows = rows.filter(n => (n.kind || '') === currentKind);
         if (unreadOnly.checked) rows = rows.filter(n => !n.read_at);
+
+        loadMoreBtn.style.display = (items?.length || 0) >= currentLimit ? 'inline-block' : 'none';
 
         if (rows.length === 0) { emptyEl.style.display = 'block'; return; }
 
         for (const n of rows) {
-          const link = n.link || null; // RPC returns link; we rely on that
+          const isPolicing = (n.kind || '').toUpperCase() === 'POLICING';
+          const link = isPolicing ? buildPolicingLink(n) : (n.link || null);
+
+          // Wrap the entire card in an <a> and FORCE top-level navigation
+          const wrapper = document.createElement('a');
+          wrapper.className = 'card-link';
+          wrapper.href = link || '#';
+          wrapper.target = '_top';  // break out of any iframe
+          wrapper.rel = 'noopener';
+
+          if (link) {
+            wrapper.addEventListener('click', (e) => {
+              // Ensure hard navigation even if something cancels it
+              e.preventDefault(); e.stopPropagation();
+              window.top.location.href = link;
+            });
+          }
+
           const card = document.createElement('div');
           card.className = 'card' + (n.read_at ? '' : ' unread');
-
-          // Make the whole card clickable if link exists
-          if (link) {
-            card.style.cursor = 'pointer';
-            card.onclick = async () => {
-              await markOneRead(n.id);
-              window.location.href = link;
-            };
-          }
 
           const header = document.createElement('div');
           header.className = 'row';
@@ -199,12 +288,124 @@
             card.appendChild(body);
           }
 
-          card.appendChild(renderActions(n, link));
-          listEl.appendChild(card);
+          // Per-card actions (do not interfere with navigation)
+          const actions = document.createElement('div');
+          actions.className = 'actions';
+
+          if (!n.read_at) {
+            const markBtn = document.createElement('button');
+            markBtn.className = 'btn-ghost';
+            markBtn.textContent = 'Mark as read';
+            markBtn.onclick = async (e) => {
+              e.preventDefault(); e.stopPropagation();
+              markBtn.disabled = true; markBtn.textContent = 'Reading…';
+              await markOneRead(n.id);
+              await loadNotifications();
+              await refreshUnread();
+            };
+            actions.appendChild(markBtn);
+          } else {
+            const unreadBtn = document.createElement('button');
+            unreadBtn.className = 'btn-ghost';
+            unreadBtn.textContent = 'Mark as unread';
+            unreadBtn.title = 'Move this back to unread';
+            unreadBtn.onclick = async (e) => {
+              e.preventDefault(); e.stopPropagation();
+              unreadBtn.disabled = true; unreadBtn.textContent = 'Updating…';
+              await markOneUnread(n.id);
+              await loadNotifications();
+              await refreshUnread();
+            };
+            actions.appendChild(unreadBtn);
+          }
+
+          if (link) {
+            const openBtn = document.createElement('a');
+            openBtn.className = 'btn-primary';
+            openBtn.href = link;
+            openBtn.target = '_top';
+            openBtn.rel = 'noopener';
+            openBtn.textContent = 'Open';
+            openBtn.addEventListener('click', (e) => {
+              e.preventDefault(); e.stopPropagation();
+              window.top.location.href = link;
+            });
+            actions.appendChild(openBtn);
+          }
+
+          card.appendChild(actions);
+          wrapper.appendChild(card);
+          listEl.appendChild(wrapper);
         }
       }
 
+      // unread counter (respects currentKind)
+      async function refreshUnread() {
+        try {
+          const { data, error } = await db.rpc('get_unread_notifications_count', { p_kind: currentKind || null });
+          if (error) throw error;
+          unreadChip.textContent = `Unread: ${Number(data) || 0}`;
+        } catch {
+          unreadChip.textContent = 'Unread: —';
+        }
+      }
+
+      // expose loaders for realtime
+      window._notif_load = loadNotifications;
+      window._notif_unread = refreshUnread;
+
       await loadNotifications();
+      await refreshUnread();
+
+      document.addEventListener('visibilitychange', async () => {
+        if (document.visibilityState === 'visible') {
+          await loadNotifications();
+          await refreshUnread();
+        }
+      });
+    });
+  </script>
+
+  <!-- Realtime subscriber -->
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const db = window.sb || window.supabaseClient || window.supabase;
+      if (!db) return;
+
+      try {
+        const { data: { session } = {} } = await db.auth.getSession();
+        if (!session) return;
+        const uid = session.user.id;
+
+        const ch = db.channel('notif_stream_' + uid);
+
+        ch.on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${uid}` },
+          () => {
+            window._notif_unread?.();
+            window._notif_load?.();
+          }
+        );
+
+        await ch.subscribe((status) => {
+          if (status === 'SUBSCRIBED') console.log('Realtime notifications: subscribed');
+        });
+
+        window._notif_ch = ch;
+
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') {
+            if (!window._notif_ch || window._notif_ch.state !== 'SUBSCRIBED') {
+              db.channel('notif_stream_' + uid).subscribe();
+            }
+            window._notif_unread?.();
+            window._notif_load?.();
+          }
+        });
+      } catch (e) {
+        console.warn('Realtime notifications setup failed:', e);
+      }
     });
   </script>
 </body>

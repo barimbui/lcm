@@ -12,7 +12,6 @@
 
   <!-- Early: sanitize deep-links so the modal doesn't auto-open on normal visits -->
   <script>
-    // Remove ?incident=... or #incident=... unless the link is explicitly from a notification (&src=notif)
     (function () {
       try {
         const url = new URL(window.location.href);
@@ -21,8 +20,8 @@
         if (hasIncidentParam || hasIncidentHash) {
           const src = (url.searchParams.get('src') || url.searchParams.get('source') || url.searchParams.get('from') || '').toLowerCase();
           if (src !== 'notif') {
-            url.searchParams.delete('incident');   // drop query param
-            url.hash = '';                         // drop any hash like #incident=...
+            url.searchParams.delete('incident');
+            url.hash = '';
             history.replaceState({}, '', url.toString());
           }
         }
@@ -30,7 +29,7 @@
     })();
   </script>
 
-  <!-- NEW: capture the incident id EARLY for later use -->
+  <!-- Capture the incident id EARLY for later auto-open -->
   <script>
     (function () {
       try {
@@ -38,7 +37,6 @@
         const src = (u.searchParams.get('src') || '').toLowerCase();
         const inc = u.searchParams.get('incident');
         if (src === 'notif' && inc) {
-          // Keep as a global so we don't depend on re-parsing later
           window.__PENDING_INCIDENT_ID__ = inc;
         }
       } catch {}
@@ -48,10 +46,10 @@
   <!-- Your initialized client (reuses your URL & anon key) -->
   <script defer src="supabaseClient.js"></script>
 
-  <!-- (Optional) utilities if you need them -->
+  <!-- (Optional) utilities -->
   <script defer src="utils.js"></script>
 
-  <!-- Policing page logic (defines window.openIncidentById / closeIncidentModal) -->
+  <!-- Policing page logic -->
   <script defer src="policing.js"></script>
 </head>
 
@@ -141,7 +139,7 @@
     <!-- ===== END Policing Section ===== -->
   </main>
 
-  <!-- ===== Incident Detail Modal (inline styles, no extra CSS) ===== -->
+  <!-- ===== Incident Detail Modal ===== -->
   <div id="incident-modal" hidden
        style="position:fixed; inset:0; z-index:9990; display:none; align-items:center; justify-content:center;">
     <div class="police-modal__backdrop"
@@ -168,7 +166,7 @@
         <button id="btn-true" class="police-btn">TRUE</button>
       </div>
 
-      <!-- FALSE justification form (revealed on FALSE click) -->
+      <!-- FALSE justification form -->
       <div id="false-form" hidden style="margin-top:10px;">
         <label class="police-label" for="false-reason">Why is this false?</label>
         <textarea id="false-reason" class="police-textarea" rows="3" placeholder="Brief reason…"></textarea>
@@ -182,7 +180,6 @@
   <!-- ===== END Modal ===== -->
 
   <style>
-    /* brief highlight so the target stands out when we deep-link */
     .flash-target {
       outline: 2px solid var(--purple);
       box-shadow: 0 0 0 4px rgba(120, 80, 200, .25);
@@ -195,7 +192,7 @@
     document.addEventListener('DOMContentLoaded', async () => {
       const db  = window.sb || window.supabaseClient || window.supabase;
       const url = new URL(window.location.href);
-      const notifId = url.searchParams.get('notif'); // optional: &notif=<notification id>
+      const notifId = url.searchParams.get('notif');
       if (notifId && db?.rpc) {
         const asNum = /^\d+$/.test(String(notifId)) ? Number(notifId) : null;
         try { await db.rpc('mark_notification_read', { p_notification_id: asNum ?? notifId }); } catch {}
@@ -203,14 +200,11 @@
     });
   </script>
 
-  <!-- FINAL fail-safe opener:
-       If we came from notifications (&src=notif) and we captured an incident id,
-       keep trying until policing.js exposes window.openIncidentById, then open it. -->
+  <!-- Fail-safe opener: wait for window.openIncidentById then open -->
   <script>
     (function () {
       const raw = window.__PENDING_INCIDENT_ID__;
-      if (!raw) return; // nothing to open
-
+      if (!raw) return;
       const asId = /^\d+$/.test(String(raw)) ? Number(raw) : raw;
 
       let tries = 0;
@@ -224,41 +218,40 @@
           } catch (e) {
             console.warn('[policing] openIncidentById threw', e);
           }
-        } else if (tries > 160) { // ~8s
+        } else if (tries > 160) {
           clearInterval(iv);
           console.warn('[policing] openIncidentById not ready after 8s');
         }
       }, 50);
     })();
   </script>
-<!-- Minimal auto-opener: if ?incident=… is present, open the modal -->
-<script>
-  (function () {
-    function toNumMaybe(v){ const s=String(v||''); return /^\d+$/.test(s)?Number(s):v; }
 
-    document.addEventListener('DOMContentLoaded', () => {
-      try {
-        const url = new URL(window.location.href);
-        const inc = url.searchParams.get('incident');
-        if (!inc) return; // nothing to open
-
-        const id = toNumMaybe(inc);
-        let tries = 0;
-        const iv = setInterval(() => {
-          tries++;
-          if (typeof window.openIncidentById === 'function') {
-            clearInterval(iv);
-            try { window.openIncidentById(id); } catch (e) { console.warn('openIncidentById failed:', e); }
-          } else if (tries > 200) { // ~10s max
-            clearInterval(iv);
-            console.warn('openIncidentById not ready after waiting.');
-          }
-        }, 50);
-      } catch (e) {
-        console.warn('auto-opener failed:', e);
-      }
-    });
-  })();
-</script>
+  <!-- Minimal auto-opener: if ?incident=… is present, open the modal -->
+  <script>
+    (function () {
+      function toNumMaybe(v){ const s=String(v||''); return /^\d+$/.test(s)?Number(s):v; }
+      document.addEventListener('DOMContentLoaded', () => {
+        try {
+          const url = new URL(window.location.href);
+          const inc = url.searchParams.get('incident');
+          if (!inc) return;
+          const id = toNumMaybe(inc);
+          let tries = 0;
+          const iv = setInterval(() => {
+            tries++;
+            if (typeof window.openIncidentById === 'function') {
+              clearInterval(iv);
+              try { window.openIncidentById(id); } catch (e) { console.warn('openIncidentById failed:', e); }
+            } else if (tries > 200) {
+              clearInterval(iv);
+              console.warn('openIncidentById not ready after waiting.');
+            }
+          }, 50);
+        } catch (e) {
+          console.warn('auto-opener failed:', e);
+        }
+      });
+    })();
+  </script>
 </body>
 </html>

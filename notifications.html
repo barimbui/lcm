@@ -81,7 +81,7 @@
     .section-title { margin:0 0 10px; color:var(--text); }
     .invite-item { display:flex; flex-direction:column; gap:6px; padding:10px 0; border-bottom:1px solid var(--gray-800); }
     .invite-item:last-child { border-bottom:none; }
-    .invite-line { display:flex; align-items:center; gap:8px; }
+    .invite-line { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
     .invite-name { font-weight:800; color:var(--text); }
     .invite-meta { margin-left:auto; color:var(--muted); font-size:12px; }
     .invite-actions { display:flex; gap:8px; }
@@ -221,7 +221,7 @@
         await refreshUnread();
       }
 
-      // ===== Build correct POLICING deep links (kept) =====
+      // ===== POLICING deep link helpers (kept) =====
       function getIncidentFromLink(href) {
         if (!href) return null;
         try {
@@ -251,99 +251,60 @@
         }
         return `${base}?src=notif&notif=${nid}`;
       }
-      // ========================================================
+      // =============================================
 
-      // ===== Invites loader (NEW) =====
+      // ===== Invites loader (NEW: uses get_my_pending_invites) =====
       async function loadInvites() {
         invitesList.innerHTML = '';
         invitesEmpty.style.display = 'none';
 
-        const { data: { session } = {} } = await db.auth.getSession();
-        if (!session) return;
-        const uid = session.user.id;
-        const email = session.user.email || '';
+        const { data, error } = await db.rpc('get_my_pending_invites');
+        if (error) {
+          console.warn('get_my_pending_invites error:', error);
+          invitesEmpty.style.display = 'block';
+          return;
+        }
 
-        const nowISO = new Date().toISOString();
-
-        // Fetch two sets (by user_id and by email) then merge.
-        const [byUid, byEmail] = await Promise.all([
-          db.from('community_invites')
-            .select('id, community_id, inviter_user_id, invitee_email, created_at, expires_at, status')
-            .eq('status','pending')
-            .gt('expires_at', nowISO)
-            .eq('invitee_user_id', uid),
-          db.from('community_invites')
-            .select('id, community_id, inviter_user_id, invitee_email, created_at, expires_at, status')
-            .eq('status','pending')
-            .gt('expires_at', nowISO)
-            .is('invitee_user_id', null)
-            .ilike('invitee_email', email)
-        ]);
-
-        let rows = [];
-        if (byUid.data) rows = rows.concat(byUid.data);
-        if (byEmail.data) rows = rows.concat(byEmail.data);
-
-        // Deduplicate by id
-        const seen = new Set(); rows = rows.filter(r => (seen.has(r.id) ? false : (seen.add(r.id), true)));
-
-        // Enrich with community name and inviter name (best effort)
-        const comIds = [...new Set(rows.map(r => r.community_id))];
-        const invUids = [...new Set(rows.map(r => r.inviter_user_id))];
-
-        let comMap = new Map(), inviterMap = new Map();
-        try {
-          if (comIds.length) {
-            const { data: cs } = await db
-              .from('user_custom_communities')
-              .select('id, name')
-              .in('id', comIds);
-            for (const c of (cs||[])) comMap.set(c.id, c.name);
-          }
-        } catch {}
-        try {
-          if (invUids.length) {
-            const { data: ps } = await db
-              .from('user_profiles')
-              .select('user_id, display_name')
-              .in('user_id', invUids);
-            for (const p of (ps||[])) inviterMap.set(p.user_id, p.display_name || p.user_id);
-          }
-        } catch {}
-
+        const rows = data || [];
         if (!rows.length) {
           invitesEmpty.style.display = 'block';
           return;
         }
 
-        for (const inv of rows.sort((a,b) => new Date(b.created_at) - new Date(a.created_at))) {
+        for (const inv of rows) {
           const line = document.createElement('div');
           line.className = 'invite-item';
 
           const top = document.createElement('div');
           top.className = 'invite-line';
-          const cname = comMap.get(inv.community_id) || inv.community_id;
-          const iname = inviterMap.get(inv.inviter_user_id) || 'Someone';
+          const cname = inv.community_name || '(private community)';
+          const iname = inv.inviter_name || 'Someone';
           top.innerHTML = `
             <span class="invite-name">${iname}</span>
             <span class="muted">invited you to</span>
             <strong>${cname}</strong>
-            <span class="invite-meta">${new Date(inv.created_at).toLocaleString()}</span>
+            <span class="invite-meta">${fmtDate(inv.created_at)}</span>
           `;
 
           const actions = document.createElement('div');
           actions.className = 'invite-actions';
+
           const accept = document.createElement('button');
           accept.className = 'btn-primary';
           accept.textContent = 'Accept';
+
           const decline = document.createElement('button');
           decline.className = 'btn-danger';
           decline.textContent = 'Decline';
 
           accept.addEventListener('click', async () => {
             accept.disabled = true; decline.disabled = true; accept.textContent = 'Accepting…';
-            const { error } = await db.rpc('accept_invite_by_id', { p_invite_id: inv.id });
-            if (error) { alert(error.message || 'Could not accept invite.'); accept.disabled = false; decline.disabled = false; accept.textContent = 'Accept'; return; }
+            const { error } = await db.rpc('accept_invite_by_token', { p_token: inv.token });
+            if (error) {
+              alert(error.message || 'Could not accept invite.');
+              accept.disabled = false; decline.disabled = false; accept.textContent = 'Accept';
+              return;
+            }
             await loadInvites();
             await loadNotifications();
             await refreshUnread();
@@ -351,19 +312,22 @@
 
           decline.addEventListener('click', async () => {
             accept.disabled = true; decline.disabled = true; decline.textContent = 'Declining…';
-            const { error } = await db.rpc('decline_invite_by_id', { p_invite_id: inv.id });
-            if (error) { alert(error.message || 'Could not decline invite.'); accept.disabled = false; decline.disabled = false; decline.textContent = 'Decline'; return; }
+            const { error } = await db.rpc('decline_invite_by_token', { p_token: inv.token });
+            if (error) {
+              alert(error.message || 'Could not decline invite.');
+              accept.disabled = false; decline.disabled = false; decline.textContent = 'Decline';
+              return;
+            }
             await loadInvites();
             await refreshUnread();
           });
 
-          actions.appendChild(accept);
-          actions.appendChild(decline);
-
-          // Expiry hint (optional)
           const exp = document.createElement('div');
           exp.className = 'muted';
-          exp.textContent = `Expires: ${new Date(inv.expires_at).toLocaleString()}`;
+          exp.textContent = `Expires: ${fmtDate(inv.expires_at)}`;
+
+          actions.appendChild(accept);
+          actions.appendChild(decline);
 
           line.appendChild(top);
           line.appendChild(actions);
@@ -393,7 +357,6 @@
           const isPolicing = (n.kind || '').toUpperCase() === 'POLICING';
           const link = isPolicing ? buildPolicingLink(n) : (n.link || null);
 
-          // Wrap the entire card in an <a> and FORCE top-level navigation
           const wrapper = document.createElement('a');
           wrapper.className = 'card-link';
           wrapper.href = link || '#';
@@ -426,7 +389,6 @@
             card.appendChild(body);
           }
 
-          // Per-card actions
           const actions = document.createElement('div');
           actions.className = 'actions';
 
@@ -477,7 +439,6 @@
         }
       }
 
-      // unread counter (respects currentKind)
       async function refreshUnread() {
         try {
           const { data, error } = await db.rpc('get_unread_notifications_count', { p_kind: currentKind || null });
@@ -520,7 +481,6 @@
 
         const ch = db.channel('notif_stream_' + uid);
 
-        // Notifications table realtime (kept)
         ch.on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${uid}` },
@@ -530,7 +490,6 @@
           }
         );
 
-        // Community invites realtime — reload invites on any change (broad but simple)
         ch.on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'community_invites' },

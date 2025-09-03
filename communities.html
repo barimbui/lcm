@@ -55,7 +55,7 @@
     .custom-grid { display:grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
     .meta { color: var(--muted); font-size: 12px; margin-top: 6px; }
 
-    /* Invite modal */
+    /* Invite modal (custom communities) */
     .modal { position: fixed; inset: 0; display: none; place-items: center; background: rgba(0,0,0,.55); z-index: 50; }
     .modal.open { display: grid; }
     .modal-card { width: min(680px, 92vw); background: var(--panel); border: 1px solid var(--gray-700); border-radius: 16px; box-shadow: 0 12px 40px rgba(0,0,0,.6); padding: 16px; }
@@ -148,7 +148,7 @@
     </div>
   </main>
 
-  <!-- ===== INVITE MODAL ===== -->
+  <!-- ===== INVITE MODAL (custom communities) ===== -->
   <div id="invite-modal" class="modal" aria-hidden="true">
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="invite-title">
       <div class="modal-head">
@@ -178,6 +178,34 @@
         <input id="invite-link" type="text" readonly style="flex:1;background:transparent;border:none;color:var(--text);" />
         <button id="invite-copy" class="btn-ghost" type="button">Copy</button>
         <a id="invite-to-notifs" class="btn-ghost" href="notifications.html">Open Notifications</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== ADD VERIFIER MODAL (built-in categories) ===== -->
+  <div id="verifier-modal" class="modal" aria-hidden="true" style="display:none;">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="v-title">
+      <div class="modal-head">
+        <div id="v-title" class="modal-title">Add Verifier</div>
+        <div class="spacer"></div>
+        <button id="v-close" class="btn-ghost" type="button">Close</button>
+      </div>
+      <div class="small-hint" id="v-comm" style="margin-bottom:6px;"></div>
+      <div class="field">
+        <label style="color:var(--muted); font-size:.9rem;">Name (required)</label>
+        <input id="v-name" type="text" placeholder="Full name" />
+      </div>
+      <div class="field">
+        <label style="color:var(--muted); font-size:.9rem;">Email (optional)</label>
+        <input id="v-email" type="email" placeholder="name@example.com" />
+      </div>
+      <div class="field">
+        <label style="color:var(--muted); font-size:.9rem;">Phone (optional)</label>
+        <input id="v-phone" type="text" placeholder="+254 7xx xxx xxx" />
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <button id="v-save" class="btn-primary" type="button">Save</button>
+        <div id="v-status" class="small-hint"></div>
       </div>
     </div>
   </div>
@@ -233,6 +261,7 @@
           </div>
           <div class="actions">
             <button class="btn-ghost" id="toggle-${code}" aria-expanded="false">View verifiers</button>
+            <button class="btn-ghost" data-add-verifier="${code}">Add Verifier</button>
           </div>
           <ul class="list" id="list-${code}"></ul>
         `;
@@ -255,7 +284,10 @@
         if (!confirm('Remove this verifier?')) return;
         const { error } = await window.sb.from('verifiers').delete().eq('id', verifierId);
         if (error) { alert(error.message || 'Could not remove'); return; }
-        // reload section
+        await refreshVerifierList(code);
+      }
+
+      async function refreshVerifierList(code) {
         const listEl = document.getElementById(`list-${code}`);
         const countEl = document.getElementById(`count-${code}`);
         const verifiers = await loadVerifiersFor(code);
@@ -279,28 +311,10 @@
       // populate built-in lists + handlers
       for (const code of codes) {
         const listEl = document.getElementById(`list-${code}`);
-        const countEl = document.getElementById(`count-${code}`);
         const toggle = document.getElementById(`toggle-${code}`);
 
         // initial load
-        (async () => {
-          const verifiers = await loadVerifiersFor(code);
-          countEl.textContent = verifiers.length;
-          listEl.innerHTML = '';
-          if (verifiers.length === 0) {
-            const li = document.createElement('li'); li.innerHTML = `<span class="name">No verifiers yet.</span>`;
-            listEl.appendChild(li);
-          } else {
-            for (const v of verifiers) {
-              const li = document.createElement('li');
-              li.innerHTML = `
-                <span class="name">${v.name || '(unnamed verifier)'}</span>
-                <button class="btn-ghost" data-remove="${v.id}">Remove</button>
-              `;
-              listEl.appendChild(li);
-            }
-          }
-        })();
+        refreshVerifierList(code);
 
         toggle.addEventListener('click', () => {
           const isOpen = listEl.classList.toggle('show');
@@ -395,7 +409,7 @@
 
       await loadCustomCommunities();
 
-      // ===== Invite modal wiring =====
+      // ===== Invite modal wiring (custom communities) =====
       const modal = document.getElementById('invite-modal');
       const modalClose = document.getElementById('invite-close');
       const paneUser = document.getElementById('pane-user');
@@ -443,7 +457,6 @@
         const q = searchInput.value.trim();
         resultsEl.innerHTML = '';
         if (!q) return;
-        // You already have this RPC in your codebase. If not, we can add it later.
         const { data, error } = await window.sb.rpc('search_user_directory', { q, limit_count: 10 });
         if (error) { console.error('search_user_directory error:', error); return; }
         for (const u of (data || [])) {
@@ -492,7 +505,6 @@
 
       function showSuccessLink(token) {
         if (token) {
-          // uses invite.html (provided below)
           const base = location.origin + location.pathname.replace(/[^/]*$/, '');
           const url = `${base}invite.html?token=${token}`;
           linkInput.value = url; successBox.style.display = 'flex';
@@ -500,7 +512,7 @@
       }
       linkCopy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(linkInput.value); linkCopy.textContent = 'Copied'; setTimeout(()=>linkCopy.textContent='Copy',800); } catch {} });
 
-      // Open modal (owner only) + Delete/Leave/Manage
+      // Open modal (owner only) + Delete/Leave/Manage for custom communities
       customGrid.addEventListener('click', async (e) => {
         const a = e.target.closest('a[data-action]'); if (!a) return;
         e.preventDefault();
@@ -538,6 +550,85 @@
           window.location.href = `community_manage.html?id=${communityId}`;
           return;
         }
+      });
+
+      // ===== Add Verifier modal wiring (built-in) =====
+      const vModal  = document.getElementById('verifier-modal');
+      const vClose  = document.getElementById('v-close');
+      const vComm   = document.getElementById('v-comm');
+      const vName   = document.getElementById('v-name');
+      const vEmail  = document.getElementById('v-email');
+      const vPhone  = document.getElementById('v-phone');
+      const vSave   = document.getElementById('v-save');
+      const vStatus = document.getElementById('v-status');
+      let vCurrentCode = null;
+
+      function openVerifierModal(code, label) {
+        vCurrentCode = code;
+        vComm.textContent = `Community: ${label} (${code})`;
+        vName.value = '';
+        vEmail.value = '';
+        vPhone.value = '';
+        vStatus.textContent = '';
+        vModal.classList.add('open');
+        vModal.style.display = 'grid';
+        vModal.setAttribute('aria-hidden', 'false');
+        setTimeout(() => vName.focus(), 50);
+      }
+      function closeVerifierModal() {
+        vModal.classList.remove('open');
+        vModal.style.display = 'none';
+        vModal.setAttribute('aria-hidden', 'true');
+      }
+      vClose.addEventListener('click', closeVerifierModal);
+      vModal.addEventListener('click', (e) => { if (e.target === vModal) closeVerifierModal(); });
+
+      // Delegate clicks for Add Verifier buttons
+      row.addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-add-verifier]');
+        if (!btn) return;
+        const code = btn.getAttribute('data-add-verifier');
+        const label = btn.closest('.community-card')?.querySelector('.card-title')?.textContent || code;
+        openVerifierModal(code, label);
+      });
+
+      // Save a verifier (insert into verifiers)
+      vSave.addEventListener('click', async () => {
+        if (!vCurrentCode) return;
+        const name = vName.value.trim();
+        const email = vEmail.value.trim();
+        const phone = vPhone.value.trim();
+        if (!name) { vStatus.textContent = 'Name is required.'; return; }
+
+        vSave.disabled = true;
+        vStatus.textContent = 'Saving…';
+
+        const base = {
+          owner_user_id: (await window.sb.auth.getUser()).data.user.id,
+          community: vCurrentCode,
+          name
+        };
+
+        // Try with optional columns first; fallback if columns don't exist.
+        let payload = { ...base };
+        if (email) payload.email = email;
+        if (phone) payload.phone = phone;
+
+        let ins = await window.sb.from('verifiers').insert(payload).select('id').single();
+
+        if (ins.error && /column .* does not exist/i.test(ins.error.message)) {
+          ins = await window.sb.from('verifiers').insert(base).select('id').single();
+        }
+        if (ins.error) {
+          vStatus.textContent = ins.error.message || 'Could not save.';
+          vSave.disabled = false;
+          return;
+        }
+
+        vStatus.textContent = 'Saved ✅';
+        await refreshVerifierList(vCurrentCode);
+        setTimeout(closeVerifierModal, 500);
+        vSave.disabled = false;
       });
     });
   </script>

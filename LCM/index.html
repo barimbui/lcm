@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.0.0/dist/umd/supabase.min.js"></script>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LCM DASHBOARD</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <!-- Top Bar with Title at the very top -->
+    <div class="top-bar">
+        <h1>LCM DASHBOARD</h1>
+    </div>
+
+    <!-- User Profile Section -->
+    <div class="user-profile">
+        <h2>User Profile</h2>
+        <p><strong>Name:</strong> Eric Muthomi Barimbui</p>
+        <p><strong>Email:</strong> ebarimbui@gmail.com</p>
+
+        <!-- MY COMMUNITIES Section -->
+        <div class="communities-title">
+            <h3>MY COMMUNITIES</h3>
+        </div>
+        <div class="community-row">
+            <!-- Static Communities Here (like Home, School, Work, etc.) -->
+            <div class="community-column">
+                <h4>Home</h4>
+                <p>Number of Verifiers: <span id="homeVerifiers">5</span></p>
+                <button class="dropdown-btn">View Verifiers</button>
+                <div class="dropdown-content">
+                    <p>John</p>
+                    <p>Jane</p>
+                    <p>Alice</p>
+                </div>
+                <button class="add-btn">+</button>
+                <button class="remove-btn">-</button>
+            </div>
+            <div class="community-column">
+                <h4>School</h4>
+                <p>Number of Verifiers: <span id="schoolVerifiers">3</span></p>
+                <button class="dropdown-btn">View Verifiers</button>
+                <div class="dropdown-content">
+                    <p>Mike</p>
+                    <p>Sarah</p>
+                </div>
+                <button class="add-btn">+</button>
+                <button class="remove-btn">-</button>
+            </div>
+            <div class="community-column">
+                <h4>Church</h4>
+                <p>Number of Verifiers: <span id="churchVerifiers">4</span></p>
+                <button class="dropdown-btn">View Verifiers</button>
+                <div class="dropdown-content">
+                    <p>Anna</p>
+                    <p>Luke</p>
+                    <p>Paul</p>
+                </div>
+                <button class="add-btn">+</button>
+                <button class="remove-btn">-</button>
+            </div>
+            <div class="community-column">
+                <h4>Team</h4>
+                <p>Number of Verifiers: <span id="teamVerifiers">2</span></p>
+                <button class="dropdown-btn">View Verifiers</button>
+                <div class="dropdown-content">
+                    <p>Tom</p>
+                    <p>Alice</p>
+                </div>
+                <button class="add-btn">+</button>
+                <button class="remove-btn">-</button>
+            </div>
+        </div>
+
+        <!-- "What are you up to today?" Section -->
+        <div class="question-title">
+            <h3>What are you up to today?</h3>
+        </div>
+        
+        <!-- User Input Area with White Border -->
+        <textarea class="task-input" placeholder="Write down what you're up to today..."></textarea>
+        
+        <!-- Dropdown Suggestions (suggested as the user types) -->
+        <div class="suggestions-dropdown">
+            <ul>
+                <li>Task Suggestion 1</li>
+                <li>Task Suggestion 2</li>
+                <li>Task Suggestion 3</li>
+            </ul>
+        </div>
+
+        <!-- Row for Category, Verifier, and Submit Buttons -->
+        <div class="action-buttons">
+            <!-- Choose Category Button -->
+            <button class="choose-category-btn" id="chooseCategoryBtn">Choose Category</button>
+            <div class="category-dropdown-content" id="categoryDropdown">
+                <!-- Categories will be populated here -->
+            </div>
+
+            <!-- Choose Verifier Button -->
+            <button class="choose-verifier-btn" id="chooseVerifierBtn">Choose Verifier</button>
+            <div class="verifier-dropdown-content" id="verifierDropdown">
+                <!-- Verifiers will be populated here -->
+            </div>
+
+            <!-- Submit Button -->
+            <button class="submit-btn">Submit</button>
+        </div>
+        
+        <!-- Tasks Logged Table -->
+        <div class="tasks-logged-table">
+            <h3>TASKS LOGGED 7TH AUGUST 2025</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Task</th>
+                        <th>Category</th>
+                        <th>Verifiers</th>
+                        <th>Status</th>
+                        <th>Credits</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Made My Bed</td>
+                        <td>Home</td>
+                        <td>🟩🟩⬜⬜⬜</td>
+                        <td>Pending Verification</td>
+                        <td>+1</td>
+                    </tr>
+                    <!-- Other rows -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Special Credits Table -->
+        <div class="special-credits-table">
+            <h3>SPECIAL CREDITS</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Credit Type</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Policing Credit</td>
+                        <td>5</td>
+                        <td>Verified</td>
+                    </tr>
+                    <!-- Other rows -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Daily Stats Table -->
+        <div class="daily-stats-table">
+            <h3>DAILY STATS</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Total Tasks Logged</th>
+                        <th>Verified Tasks</th>
+                        <th>Policing Credits</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>7th August 2025</td>
+                        <td>3</td>
+                        <td>2</td>
+                        <td>2</td>
+                    </tr>
+                    <!-- Other rows -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Monthly Stats Table -->
+        <div class="monthly-stats-table">
+            <h3>MONTHLY STATS</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Month</th>
+                        <th>Total Tasks Logged</th>
+                        <th>Verified Tasks</th>
+                        <th>Total Credits</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>August 2025</td>
+                        <td>12</td>
+                        <td>10</td>
+                        <td>30</td>
+                    </tr>
+                    <!-- Other rows -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Yearly Stats Table -->
+        <div class="yearly-stats-table">
+            <h3>YEARLY STATS</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Year</th>
+                        <th>Total Tasks Logged</th>
+                        <th>Verified Tasks</th>
+                        <th>Total Credits</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>2025</td>
+                        <td>100</td>
+                        <td>90</td>
+                        <td>200</td>
+                    </tr>
+                    <!-- Other rows -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+<script src="app.js"></script>
+</body>
+</html>

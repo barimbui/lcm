@@ -31,8 +31,10 @@
       background: transparent; border: 1px solid var(--gray-700); border-radius: 10px;
       color: var(--text); padding: 6px 8px; cursor: pointer; text-decoration: none;
     }
-    .list { margin: 0; padding-left: 16px; list-style: disc; color: var(--muted); display: none; }
+    .list { margin: 0; padding-left: 16px; list-style: none; color: var(--muted); display: none; }
     .list.show { display: block; }
+    .list li { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:4px 0; }
+    .list .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
     .bar { display:flex; align-items:center; gap:10px; margin: 10px 0; }
     .spacer { flex: 1 1 auto; }
@@ -53,7 +55,7 @@
     .custom-grid { display:grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
     .meta { color: var(--muted); font-size: 12px; margin-top: 6px; }
 
-    /* Invite modal (unchanged from earlier) */
+    /* Invite modal */
     .modal { position: fixed; inset: 0; display: none; place-items: center; background: rgba(0,0,0,.55); z-index: 50; }
     .modal.open { display: grid; }
     .modal-card { width: min(680px, 92vw); background: var(--panel); border: 1px solid var(--gray-700); border-radius: 16px; box-shadow: 0 12px 40px rgba(0,0,0,.6); padding: 16px; }
@@ -146,7 +148,7 @@
     </div>
   </main>
 
-  <!-- ===== INVITE MODAL (same as previous step) ===== -->
+  <!-- ===== INVITE MODAL ===== -->
   <div id="invite-modal" class="modal" aria-hidden="true">
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="invite-title">
       <div class="modal-head">
@@ -219,6 +221,7 @@
       row.innerHTML = '';
       const codes = ['HOME','SCHOOL','CHURCH','WORK','TEAM'];
       const byCode = new Map((comms||[]).map(c => [c.code, c]));
+
       for (const code of codes) {
         const label = byCode.get(code)?.label || code;
         const card = document.createElement('div');
@@ -239,29 +242,77 @@
       async function loadVerifiersFor(code) {
         const { data, error } = await window.sb
           .from('verifiers')
-          .select('name')
+          .select('id, name')
           .eq('owner_user_id', session.user.id)
           .eq('community', code)
           .order('name', { ascending: true });
         if (error) return [];
         return data || [];
       }
+
+      // delete a verifier
+      async function removeVerifier(verifierId, code) {
+        if (!confirm('Remove this verifier?')) return;
+        const { error } = await window.sb.from('verifiers').delete().eq('id', verifierId);
+        if (error) { alert(error.message || 'Could not remove'); return; }
+        // reload section
+        const listEl = document.getElementById(`list-${code}`);
+        const countEl = document.getElementById(`count-${code}`);
+        const verifiers = await loadVerifiersFor(code);
+        countEl.textContent = verifiers.length;
+        listEl.innerHTML = '';
+        if (verifiers.length === 0) {
+          const li = document.createElement('li'); li.innerHTML = `<span class="name">No verifiers yet.</span>`;
+          listEl.appendChild(li);
+        } else {
+          for (const v of verifiers) {
+            const li = document.createElement('li');
+            li.innerHTML = `
+              <span class="name">${v.name || '(unnamed verifier)'}</span>
+              <button class="btn-ghost" data-remove="${v.id}">Remove</button>
+            `;
+            listEl.appendChild(li);
+          }
+        }
+      }
+
+      // populate built-in lists + handlers
       for (const code of codes) {
         const listEl = document.getElementById(`list-${code}`);
         const countEl = document.getElementById(`count-${code}`);
         const toggle = document.getElementById(`toggle-${code}`);
-        const verifiers = await loadVerifiersFor(code);
-        countEl.textContent = verifiers.length;
-        listEl.innerHTML = '';
-        for (const v of verifiers) {
-          const li = document.createElement('li');
-          li.textContent = v.name || '(unnamed verifier)';
-          listEl.appendChild(li);
-        }
+
+        // initial load
+        (async () => {
+          const verifiers = await loadVerifiersFor(code);
+          countEl.textContent = verifiers.length;
+          listEl.innerHTML = '';
+          if (verifiers.length === 0) {
+            const li = document.createElement('li'); li.innerHTML = `<span class="name">No verifiers yet.</span>`;
+            listEl.appendChild(li);
+          } else {
+            for (const v of verifiers) {
+              const li = document.createElement('li');
+              li.innerHTML = `
+                <span class="name">${v.name || '(unnamed verifier)'}</span>
+                <button class="btn-ghost" data-remove="${v.id}">Remove</button>
+              `;
+              listEl.appendChild(li);
+            }
+          }
+        })();
+
         toggle.addEventListener('click', () => {
           const isOpen = listEl.classList.toggle('show');
           toggle.setAttribute('aria-expanded', String(isOpen));
           toggle.textContent = isOpen ? 'Hide verifiers' : 'View verifiers';
+        });
+
+        // delegate remove clicks
+        listEl.addEventListener('click', (e) => {
+          const btn = e.target.closest('button[data-remove]');
+          if (!btn) return;
+          removeVerifier(btn.getAttribute('data-remove'), code);
         });
       }
 
@@ -290,7 +341,7 @@
         const { data: created, error } = await window.sb
           .from('user_custom_communities')
           .insert({ owner_user_id: session.user.id, name, slug, is_private: isPrivate })
-          .select('id, name')
+          .select('id, name, owner_user_id')
           .single();
 
         if (error) { ccStatus.textContent = error.message; return; }
@@ -319,14 +370,6 @@
             .eq('community_id', c.id);
           const count = members?.length || 0;
 
-          // am I a member?
-          const { data: myMem } = await window.sb
-            .from('community_members')
-            .select('user_id')
-            .eq('community_id', c.id)
-            .eq('user_id', session.user.id)
-            .maybeSingle();
-          const amMember = !!myMem;
           const amOwner  = c.owner_user_id === session.user.id;
 
           const card = document.createElement('div');
@@ -342,7 +385,7 @@
             <div class="actions" style="margin-top:8px;">
               ${amOwner ? `<a class="btn-ghost" href="#" data-action="invite" data-id="${c.id}" data-owner="${c.owner_user_id}">Invite</a>` : ''}
               ${amOwner ? `<a class="btn-ghost" href="#" data-action="delete" data-id="${c.id}">Delete</a>` : ''}
-              ${!amOwner && amMember ? `<a class="btn-ghost" href="#" data-action="leave" data-id="${c.id}">Leave</a>` : ''}
+              ${!amOwner ? `<a class="btn-ghost" href="#" data-action="leave" data-id="${c.id}">Leave</a>` : ''}
               <a class="btn-ghost" href="#" data-action="manage" data-id="${c.id}">Manage</a>
             </div>
           `;
@@ -352,7 +395,7 @@
 
       await loadCustomCommunities();
 
-      // ===== Invite modal (existing from last step) =====
+      // ===== Invite modal wiring =====
       const modal = document.getElementById('invite-modal');
       const modalClose = document.getElementById('invite-close');
       const paneUser = document.getElementById('pane-user');
@@ -400,6 +443,7 @@
         const q = searchInput.value.trim();
         resultsEl.innerHTML = '';
         if (!q) return;
+        // You already have this RPC in your codebase. If not, we can add it later.
         const { data, error } = await window.sb.rpc('search_user_directory', { q, limit_count: 10 });
         if (error) { console.error('search_user_directory error:', error); return; }
         for (const u of (data || [])) {
@@ -448,13 +492,15 @@
 
       function showSuccessLink(token) {
         if (token) {
-          const url = `${location.origin}${location.pathname.replace(/[^/]*$/, '')}invite.html?token=${token}`;
+          // uses invite.html (provided below)
+          const base = location.origin + location.pathname.replace(/[^/]*$/, '');
+          const url = `${base}invite.html?token=${token}`;
           linkInput.value = url; successBox.style.display = 'flex';
         } else { successBox.style.display = 'none'; }
       }
       linkCopy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(linkInput.value); linkCopy.textContent = 'Copied'; setTimeout(()=>linkCopy.textContent='Copy',800); } catch {} });
 
-      // Open Invite modal (owner only) + Delete/Leave/Manage
+      // Open modal (owner only) + Delete/Leave/Manage
       customGrid.addEventListener('click', async (e) => {
         const a = e.target.closest('a[data-action]'); if (!a) return;
         e.preventDefault();
@@ -489,7 +535,6 @@
         }
 
         if (action === 'manage') {
-          /* ONE-LINER CHANGE: go to the manage page */
           window.location.href = `community_manage.html?id=${communityId}`;
           return;
         }

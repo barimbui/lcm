@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -6,8 +6,6 @@
   <title>LCM — Invitation</title>
 
   <link rel="stylesheet" href="styles.css" />
-
-  <!-- Supabase v2 -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="supabaseClient.js"></script>
 
@@ -20,6 +18,8 @@
     .row { display:flex; align-items:center; gap:10px; }
     .spacer { flex: 1 1 auto; }
     .hint { color: var(--muted); }
+    .ok   { color: #9fe29f; }
+    .err  { color: #ffb3b3; }
     .btn-primary { background: var(--purple); color:#fff; border:none; padding:8px 12px; border-radius:10px; cursor:pointer; }
     .btn-secondary { background: transparent; color: var(--text); border:1px solid var(--gray-700); padding:8px 12px; border-radius:10px; cursor:pointer; }
   </style>
@@ -66,15 +66,11 @@
 
       if (!window.sb) { whoEl.textContent = 'Supabase not initialized.'; return; }
 
-      // Show session (if any)
+      // Session
       let { data: { session } } = await window.sb.auth.getSession();
-      if (!session) {
-        whoEl.textContent = 'Not signed in';
-      } else {
-        whoEl.textContent = `Signed in as: ${session.user?.email || '(no email)'}`;
-      }
+      whoEl.textContent = session ? `Signed in as: ${session.user?.email || '(no email)'}` : 'Not signed in';
 
-      // Need a token
+      // Token
       const params = new URLSearchParams(location.search);
       const token = params.get('token');
       if (!token) {
@@ -82,10 +78,10 @@
         acceptBtn.disabled = true;
         return;
       }
+      statusEl.textContent = 'Invite ready. Click Accept to join.';
 
-      // Click to accept (requires being signed in with the invited email)
+      // Accept (requires sign-in)
       acceptBtn.addEventListener('click', async () => {
-        // Refresh session just in case
         ({ data: { session } } = await window.sb.auth.getSession());
         if (!session) {
           statusEl.textContent = 'Please sign in first, then click Accept.';
@@ -96,34 +92,31 @@
         acceptBtn.textContent = 'Accepting…';
         statusEl.textContent = 'Processing invitation…';
 
-        // Call the RPC we created: public.accept_invite(p_token uuid)
-        const { data, error } = await window.sb.rpc('accept_invite', { p_token: token });
+        // NEW RPC: accept_community_invite
+        const { data, error } = await window.sb.rpc('accept_community_invite', { p_token: token });
 
         if (error) {
-          console.error('accept_invite error:', error);
+          console.error('accept_community_invite error:', error);
           acceptBtn.disabled = false;
           acceptBtn.textContent = 'Accept Invite';
-
-          // Friendly messages for common cases
           let m = error.message || 'Could not accept invite.';
-          if (/invite expired/i.test(m)) m = 'This invite has expired.';
-          if (/invite not found/i.test(m)) m = 'This invite link is invalid.';
-          if (/for .*@/i.test(m)) m = m + ' Please sign out and sign in with that email.';
+          if (/expired/i.test(m)) m = 'This invite has expired.';
+          if (/invalid/i.test(m)) m = 'This invite link is invalid.';
+          if (/not assigned to your account/i.test(m)) m = 'This invite is assigned to a different account. Try signing out and using the invited account.';
           statusEl.textContent = m;
+          statusEl.className = 'err';
           return;
         }
 
-        // Success: data returns rows with (community_id, invitee_email)
-        const row = Array.isArray(data) && data[0] ? data[0] : data;
-        const cid = row?.community_id;
+        const communityId = data?.community_id;
         statusEl.textContent = 'Invitation accepted ✅ You have been added to the community.';
+        statusEl.className = 'ok';
 
-        if (cid) {
-          openBtn.href = `community.html?id=${cid}`;
+        if (communityId) {
+          openBtn.href = `community.html?id=${communityId}`;
           openBtn.style.display = 'inline-block';
           openBtn.focus();
         }
-
         acceptBtn.style.display = 'none';
       });
     });

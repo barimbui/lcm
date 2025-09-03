@@ -262,6 +262,7 @@
           <div class="actions">
             <button class="btn-ghost" id="toggle-${code}" aria-expanded="false">View verifiers</button>
             <button class="btn-ghost" data-add-verifier="${code}">Add Verifier</button>
+            <button class="btn-ghost" data-invite-builtin="${code}">Invite</button>
           </div>
           <ul class="list" id="list-${code}"></ul>
         `;
@@ -590,6 +591,22 @@
         const code = btn.getAttribute('data-add-verifier');
         const label = btn.closest('.community-card')?.querySelector('.card-title')?.textContent || code;
         openVerifierModal(code, label);
+      });
+
+      // NEW: Built-in "Invite" → ensure community exists, then open Invite modal
+      row.addEventListener('click', async (e) => {
+        const btn = e.target.closest('button[data-invite-builtin]');
+        if (!btn) return;
+        const code = btn.getAttribute('data-invite-builtin');
+        const card = btn.closest('.community-card');
+        const name = card?.querySelector('.card-title')?.textContent || code;
+
+        const { data: community_id, error } = await window.sb.rpc('ensure_builtin_community', { p_code: code });
+        if (error) {
+          alert(error.message || 'Could not prepare community for invites.');
+          return;
+        }
+        openModal(community_id, name);
       });
 
       // Save a verifier (insert into verifiers)
